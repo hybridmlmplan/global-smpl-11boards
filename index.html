@@ -44,17 +44,17 @@
     // 1. 190 PV BASE - ALL 11 BOARDS MASTER CONFIGURATION (1 PV = ₹1 | 72% PAIR)
     // =========================================================================
     const PACKAGES = [
-      { level: 1,  name: "Starter Box 1",    pv: 190,    amount: 190,    pairIncome: 137 },
-      { level: 2,  name: "Growth Box 2",     pv: 380,    amount: 380,    pairIncome: 274 },
-      { level: 3,  name: "Builder Box 3",    pv: 760,    amount: 760,    pairIncome: 547 },
-      { level: 4,  name: "Advance Box 4",    pv: 1520,   amount: 1520,   pairIncome: 1094 },
-      { level: 5,  name: "Executive Box 5",  pv: 3040,   amount: 3040,   pairIncome: 2189 },
-      { level: 6,  name: "Senior Box 6",     pv: 6080,   amount: 6080,   pairIncome: 4378 },
-      { level: 7,  name: "Director Box 7",   pv: 12160,  amount: 12160,  pairIncome: 8755 },
-      { level: 8,  name: "Star Box 8",       pv: 24320,  amount: 24320,  pairIncome: 17510 },
-      { level: 9,  name: "Crown Box 9",      pv: 48640,  amount: 48640,  pairIncome: 35021 },
-      { level: 10, name: "Ambassador Box 10",pv: 97280,  amount: 97280,  pairIncome: 70042 },
-      { level: 11, name: "Legend Box 11",    pv: 286720, amount: 286720, pairIncome: 206438 }
+      { level: 1,  name: "Starter Box 1",     pv: 190,    amount: 190,    pairIncome: 137 },
+      { level: 2,  name: "Growth Box 2",      pv: 380,    amount: 380,    pairIncome: 274 },
+      { level: 3,  name: "Builder Box 3",     pv: 760,    amount: 760,    pairIncome: 547 },
+      { level: 4,  name: "Advance Box 4",     pv: 1520,   amount: 1520,   pairIncome: 1094 },
+      { level: 5,  name: "Executive Box 5",   pv: 3040,   amount: 3040,   pairIncome: 2189 },
+      { level: 6,  name: "Senior Box 6",      pv: 6080,   amount: 6080,   pairIncome: 4378 },
+      { level: 7,  name: "Director Box 7",    pv: 12160,  amount: 12160,  pairIncome: 8755 },
+      { level: 8,  name: "Star Box 8",        pv: 24320,  amount: 24320,  pairIncome: 17510 },
+      { level: 9,  name: "Crown Box 9",       pv: 48640,  amount: 48640,  pairIncome: 35021 },
+      { level: 10, name: "Ambassador Box 10", pv: 97280,  amount: 97280,  pairIncome: 70042 },
+      { level: 11, name: "Legend Box 11",     pv: 286720, amount: 286720, pairIncome: 206438 }
     ];
 
     const SESSIONS = [
@@ -69,7 +69,7 @@
     ];
 
     const DEFAULT_PASSWORD = "1234";
-    const STORAGE_KEY = "global_smpl_190pv_11boards_v3";
+    const STORAGE_KEY = "global_smpl_190pv_11boards_v4";
 
     function createEmptyBoxes(unlockedUpToLevel) {
       const boxStates = {};
@@ -89,6 +89,30 @@
 
     function ensureMemberBoardSchema(m) {
       if (!m.boxes) m.boxes = createEmptyBoxes(m.activePackageLevel || 1);
+      if (!m.bankDetails || typeof m.bankDetails !== "object") {
+        m.bankDetails = {
+          accountHolder: m.name || "",
+          bankName: "",
+          accountNumber: "",
+          ifscCode: "",
+          upiId: ""
+        };
+      } else {
+        m.bankDetails.accountHolder = m.bankDetails.accountHolder || "";
+        m.bankDetails.bankName = m.bankDetails.bankName || "";
+        m.bankDetails.accountNumber = m.bankDetails.accountNumber || "";
+        m.bankDetails.ifscCode = m.bankDetails.ifscCode || "";
+        m.bankDetails.upiId = m.bankDetails.upiId || "";
+      }
+      if (!m.address || typeof m.address !== "object") {
+        m.address = { village: "", postBlock: "", district: "", state: "Odisha", pin: "" };
+      }
+      if (!m.nominee || typeof m.nominee !== "object") {
+        m.nominee = { name: "", relation: "Spouse", age: 25, contact: "" };
+      }
+      if (typeof m.totalCashPaidOut !== "number") {
+        m.totalCashPaidOut = 0;
+      }
       PACKAGES.forEach(p => {
         if (!m.boxes[p.level]) {
           m.boxes[p.level] = {
@@ -122,6 +146,7 @@
         companyMonthlyPv: 0,
         companyTotalCollection: 0,
         totalMemberCashPayouts: 0,
+        totalDisbursedToMembers: 0,
         adminNetProfitBalance: 0,
         adminExpenses: 0,
         adminPaymentDetails: {
@@ -140,10 +165,12 @@
         adminTab: "utr",
         selectedAdminMemberId: null,
         editingMemberId: null,
+        payingMemberId: null,
         lastCreatedCredentials: null,
         selectedJoinPkgLevel: 1,
         selectedJoinLeg: "LEFT",
         selectedPaymentMode: "UPI",
+        payoutRecords: [],
         newsItems: [
           { id: "N1", text: "GLOBAL SMPL • RD ENTERPRISES: 190 PV Base 11-Boards Plan (1 PV = ₹1) | All Unlocked Boards Run Simultaneously | Max 1 Pair/Board/Session | Power Leg Carry-Forward & Weaker Leg Lapse." }
         ],
@@ -187,6 +214,13 @@
             },
             pan: "ABCDE1234F",
             hasPan: true,
+            bankDetails: {
+              accountHolder: "Company Root ID",
+              bankName: "State Bank of India",
+              accountNumber: "44871128794",
+              ifscCode: "SBIN0005762",
+              upiId: "9165131659-2@ybl"
+            },
             bankInfo: "Company Primary Account",
             nominee: {
               name: "Primary Nominee",
@@ -198,6 +232,7 @@
             leftPv: 0,
             rightPv: 0,
             cashWallet: 0,
+            totalCashPaidOut: 0,
             upgradeWalletPv: 0,
             totalTdsDeposited: 0,
             boxes: createEmptyBoxes(1)
@@ -307,7 +342,7 @@
 
     function loadState() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("global_smpl_190pv_11boards_v3");
         if (!raw) return createInitialState();
         const parsed = JSON.parse(raw);
         const init = createInitialState();
@@ -317,7 +352,8 @@
           adminPaymentDetails: {
             ...init.adminPaymentDetails,
             ...(parsed && parsed.adminPaymentDetails ? parsed.adminPaymentDetails : {})
-          }
+          },
+          payoutRecords: Array.isArray(parsed && parsed.payoutRecords) ? parsed.payoutRecords : []
         };
         merged.members = (merged.members || []).map(ensureMemberBoardSchema);
         return merged;
@@ -337,9 +373,22 @@
     function resetToZeroState() {
       if (!confirm("Reset all data back to 0 turnover, ₹0 profit/payouts, and 1 Root Member?")) return;
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem("global_smpl_190pv_11boards_v3");
       state = createInitialState();
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function generateNextMemberId() {
+      let maxNum = 1000;
+      state.members.forEach(m => {
+        const match = /^SMPL(\d+)$/i.exec(String(m.id || "").trim());
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      });
+      return "SMPL" + (maxNum + 1);
     }
 
     // =========================================================================
@@ -581,10 +630,7 @@
       }
 
       state.totalMemberCashPayouts += totalSessionNetCash;
-      state.adminNetProfitBalance = Math.max(
-        0,
-        state.adminNetProfitBalance + totalSessionAdminCharge - state.adminExpenses
-      );
+      state.adminNetProfitBalance += totalSessionAdminCharge;
 
       state.closedSessionsCount += 1;
       state.currentSessionIdx = (state.currentSessionIdx + 1) % SESSIONS.length;
@@ -626,7 +672,9 @@
       const root = document.getElementById("app");
       const currentSession = SESSIONS[state.currentSessionIdx];
       const topNews = state.newsItems.map(n => "• " + n.text).join("     |     ");
-      const pendingCount = state.members.filter(m => m.status === "PENDING").length;
+      const pendingUtrCount = state.members.filter(m => m.status === "PENDING").length;
+      const pendingPayoutMembersCount = state.members.filter(m => m.cashWallet > 0).length;
+      const totalAdminBadge = pendingUtrCount + pendingPayoutMembersCount;
 
       root.innerHTML = `
         <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 sticky top-0 z-30">
@@ -639,7 +687,7 @@
               <button type="button" onclick="switchRole('member')" class="px-3 py-1.5 text-xs font-bold rounded-md transition ${state.roleView === 'member' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">Member</button>
               <button type="button" onclick="switchRole('admin')" class="relative px-3 py-1.5 text-xs font-bold rounded-md transition ${state.roleView === 'admin' ? 'bg-amber-400 text-slate-950' : 'text-slate-300'}">
                 Admin
-                ${pendingCount > 0 ? `<span class="ml-1 bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full">${pendingCount}</span>` : ""}
+                ${totalAdminBadge > 0 ? `<span class="ml-1 bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full">${totalAdminBadge}</span>` : ""}
               </button>
             </div>
           </div>
@@ -718,6 +766,7 @@
       const activePkg = PACKAGES[member.activePackageLevel - 1] || PACKAGES[0];
       const nextPkg = PACKAGES[member.activePackageLevel] || null;
       const tdsRate = member.hasPan ? 5 : 20;
+      const myPayouts = state.payoutRecords.filter(p => p.memberId === member.id);
 
       const createdBanner = state.lastCreatedCredentials ? `
         <div class="bg-amber-950 border-2 border-amber-400 rounded-xl p-3.5 text-xs space-y-1.5">
@@ -755,8 +804,9 @@
 
         <div class="grid grid-cols-2 gap-3">
           <div class="bg-slate-800 border border-emerald-500/30 rounded-xl p-3.5">
-            <div class="text-[11px] text-slate-400">Cash Wallet (All Boards Pairs 1-4)</div>
+            <div class="text-[11px] text-slate-400">Available Cash Wallet (Due)</div>
             <div class="text-xl font-extrabold text-emerald-400 mt-1">₹${member.cashWallet.toLocaleString("en-IN")}</div>
+            <div class="text-[10px] text-slate-300 mt-1">Bank Paid Out: <b class="text-sky-300">₹${(member.totalCashPaidOut || 0).toLocaleString("en-IN")}</b></div>
           </div>
           <div class="bg-slate-800 border border-amber-500/40 rounded-xl p-3.5">
             <div class="text-[11px] text-slate-400">Activation Box (Pairs 5-8)</div>
@@ -786,6 +836,24 @@
             <div class="text-lg font-bold text-purple-400 mt-0.5">${member.rightPv.toLocaleString("en-IN")} PV</div>
           </div>
         </div>
+
+        ${myPayouts.length > 0 ? `
+          <div class="bg-slate-800/90 border border-sky-500/40 rounded-2xl p-4 space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-sky-300">Received Payout Receipts (${myPayouts.length})</h3>
+              <span class="text-[11px] text-emerald-400 font-bold">Total Paid: ₹${(member.totalCashPaidOut || 0).toLocaleString("en-IN")}</span>
+            </div>
+            ${myPayouts.slice(0, 5).map(p => `
+              <div class="bg-slate-900 border border-slate-700 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                <div>
+                  <div class="font-bold text-emerald-300">₹${p.amount.toLocaleString("en-IN")} • ${escapeHtml(p.mode)}</div>
+                  <div class="text-[10px] text-slate-400">Ref/UTR: <span class="font-mono text-white">${escapeHtml(p.refNo)}</span> • ${escapeHtml(p.paidAt)}</div>
+                </div>
+                <span class="bg-emerald-500/20 text-emerald-300 font-bold text-[10px] px-2 py-0.5 rounded-full">PAID</span>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
 
         <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 space-y-3">
           <div class="flex items-center justify-between">
@@ -925,7 +993,7 @@
                   <div class="font-mono font-extrabold text-sm text-white break-all select-all">${escapeHtml(state.adminPaymentDetails.upiId)}</div>
                 </div>
                 <div class="flex gap-1.5 shrink-0">
-                  <a href="${upiDeepLink}" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs px-2.5 py-2 rounded-xl">Pay</a>
+                  <a href="${escapeAttr(upiDeepLink)}" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs px-2.5 py-2 rounded-xl">Pay</a>
                   <button type="button" onclick="copyFieldWithFeedback(this, 'adminUpiId', 'UPI ID')" class="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-xs px-3 py-2 rounded-xl">Copy UPI</button>
                 </div>
               </div>
@@ -936,7 +1004,7 @@
             <div class="grid grid-cols-2 gap-2.5">
               <div>
                 <label class="block text-xs text-slate-300 mb-1">Paid Amount (₹) *</label>
-                <input name="joiningAmount" type="number" value="${selectedPkg.amount}" required class="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs font-bold text-emerald-300" />
+                <input id="joinAmountInput" name="joiningAmount" type="number" value="${selectedPkg.amount}" required class="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs font-bold text-emerald-300" />
               </div>
               <div>
                 <label class="block text-xs text-slate-300 mb-1">Transaction / UTR No. *</label>
@@ -959,6 +1027,20 @@
           <div>
             <label class="block text-xs text-slate-300 mb-1">Member Age *</label>
             <input name="age" type="number" min="18" max="99" value="30" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+          </div>
+
+          <div class="border-t border-slate-700 pt-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-amber-300">Member Payout Bank & UPI (Optional — Later Editable)</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input name="bankName" type="text" placeholder="Bank Name (e.g. SBI)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              <input name="ifscCode" type="text" placeholder="IFSC Code" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 uppercase" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input name="accountNumber" type="text" placeholder="Bank Account Number" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white" />
+              <input name="upiId" type="text" placeholder="UPI ID (e.g. name@ybl)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-emerald-300" />
+            </div>
           </div>
 
           <div class="border-t border-slate-700 pt-3 space-y-2">
@@ -1192,10 +1274,11 @@
 
     function renderMemberTaxAndBill(member, tdsRate) {
       const myTdsRows = state.tdsEntries.filter(t => t.memberId === member.id);
+      const myPayoutRows = state.payoutRecords.filter(p => p.memberId === member.id);
       return `
         <div class="space-y-4">
           <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2">
-            <h2 class="text-base font-bold text-white">My PAN & Tax Deduction Ledger</h2>
+            <h2 class="text-base font-bold text-white">My PAN, Tax & Payout Ledger</h2>
             <div class="flex items-center justify-between bg-slate-900 p-3 rounded-xl">
               <div>
                 <div class="text-xs text-slate-400">Registered PAN (${tdsRate}% Slab)</div>
@@ -1208,10 +1291,30 @@
             </div>
           </div>
 
+          <div class="bg-slate-800 border border-emerald-500/40 rounded-2xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-emerald-300">Admin Payout Receipts</h3>
+              <span class="text-xs font-bold text-white">Paid: ₹${(member.totalCashPaidOut || 0).toLocaleString("en-IN")} | Due: ₹${member.cashWallet.toLocaleString("en-IN")}</span>
+            </div>
+            ${myPayoutRows.length === 0
+              ? `<p class="text-xs text-slate-400">Abhi tak koi bank/UPI payout receipt nahi hai.</p>`
+              : myPayoutRows.map(p => `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs flex items-center justify-between gap-2">
+                  <div>
+                    <div class="font-bold text-white">₹${p.amount.toLocaleString("en-IN")} via ${escapeHtml(p.mode)}</div>
+                    <div class="text-slate-400">Ref/UTR: <span class="font-mono text-amber-300">${escapeHtml(p.refNo)}</span> • ${escapeHtml(p.paidAt)}</div>
+                    ${p.note ? `<div class="text-[11px] text-slate-400">${escapeHtml(p.note)}</div>` : ""}
+                  </div>
+                  <span class="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>
+                </div>
+              `).join("")
+            }
+          </div>
+
           <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2">
             <h3 class="text-sm font-bold text-white">Board-Wise Payout & TDS History</h3>
             ${myTdsRows.length === 0
-              ? `<p class="text-xs text-slate-400">Abhi tak koi payout/TDS entry nahi hai.</p>`
+              ? `<p class="text-xs text-slate-400">Abhi tak koi session pair payout entry nahi hai.</p>`
               : myTdsRows.map(row => `
                 <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs flex items-center justify-between">
                   <div>
@@ -1230,12 +1333,21 @@
     }
 
     function renderMemberProfile(member) {
+      ensureMemberBoardSchema(member);
+      const bd = member.bankDetails;
+      const hasBankOrUpi = Boolean((bd.accountNumber && bd.ifscCode) || bd.upiId);
+
       return `
         <div class="space-y-4">
           ${renderReferralShareCard(member)}
 
           <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3 text-xs">
-            <h2 class="text-base font-bold text-white">Member Complete Profile</h2>
+            <div class="flex items-center justify-between">
+              <h2 class="text-base font-bold text-white">Member Complete Profile</h2>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${hasBankOrUpi ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                ${hasBankOrUpi ? 'Payout Ready' : 'Bank/UPI Pending'}
+              </span>
+            </div>
             <div class="space-y-1.5 text-slate-300">
               <div><span class="text-slate-400">User ID:</span> <span class="font-mono text-amber-300 font-bold">${member.id}</span></div>
               <div><span class="text-slate-400">Status:</span> <b class="text-white">${member.status}</b> | <span class="text-slate-400">Mode:</span> <b>${escapeHtml(member.paymentMode || "UPI")}</b> | <span class="text-slate-400">UTR:</span> <span class="font-mono text-emerald-300">${escapeHtml(member.utrNumber)}</span></div>
@@ -1246,12 +1358,121 @@
             </div>
 
             <div class="border-t border-slate-700 pt-3 space-y-1">
+              <div class="font-bold text-amber-300">Saved Payout Bank & UPI</div>
+              <div>Account Holder: <span class="text-white font-semibold">${escapeHtml(bd.accountHolder || member.name)}</span></div>
+              <div>Bank & A/C No.: <span class="text-white font-mono">${bd.bankName ? escapeHtml(bd.bankName) + " • " : ""}${bd.accountNumber ? escapeHtml(bd.accountNumber) : "Not Added"}</span></div>
+              <div>IFSC: <span class="text-amber-300 font-mono">${bd.ifscCode ? escapeHtml(bd.ifscCode) : "Not Added"}</span> | UPI: <span class="text-emerald-300 font-mono">${bd.upiId ? escapeHtml(bd.upiId) : "Not Added"}</span></div>
+            </div>
+
+            <div class="border-t border-slate-700 pt-3 space-y-1">
               <div class="font-bold text-emerald-300">Nominee Details</div>
               <div>Nominee Name: <span class="text-white font-semibold">${escapeHtml(member.nominee.name)}</span></div>
               <div>Relationship: <span class="text-amber-300 font-bold">${escapeHtml(member.nominee.relation)}</span> | Age: ${member.nominee.age} yrs</div>
               <div>Nominee Contact: ${escapeHtml(member.nominee.contact || "N/A")}</div>
             </div>
           </div>
+
+          <form onsubmit="handleMemberProfileEdit(event, '${member.id}')" class="bg-slate-800 border-2 border-emerald-500/40 rounded-2xl p-4 space-y-3 text-xs">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-emerald-300">Edit Profile, Bank Account, UPI & PAN</h3>
+                <p class="text-[11px] text-slate-400">Bank A/C ya UPI ID mein se koi bhi ek ya dono update karein.</p>
+              </div>
+            </div>
+
+            <div class="space-y-2 border-t border-slate-700 pt-2.5">
+              <div class="font-bold text-amber-300">Payout Bank & UPI Details</div>
+              <div>
+                <label class="block text-slate-300 mb-1">Account Holder Name *</label>
+                <input name="accountHolder" type="text" value="${escapeAttr(bd.accountHolder || member.name)}" placeholder="Name as per bank passbook" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Bank Name</label>
+                  <input name="bankName" type="text" value="${escapeAttr(bd.bankName)}" placeholder="e.g. SBI / PNB / HDFC" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">IFSC Code</label>
+                  <input name="ifscCode" type="text" value="${escapeAttr(bd.ifscCode)}" placeholder="e.g. SBIN0005762" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 uppercase" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">Bank Account Number</label>
+                <input name="accountNumber" type="text" value="${escapeAttr(bd.accountNumber)}" placeholder="Enter full account number" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white" />
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">UPI ID (PhonePe / GPay / Paytm)</label>
+                <input name="upiId" type="text" value="${escapeAttr(bd.upiId)}" placeholder="e.g. 9876543210@ybl" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-emerald-300" />
+              </div>
+            </div>
+
+            <div class="space-y-2 border-t border-slate-700 pt-2.5">
+              <div class="font-bold text-sky-300">Personal, PAN, Address & Nominee</div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Mobile Number *</label>
+                  <input name="mobile" type="tel" value="${escapeAttr(member.mobile)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Member Age *</label>
+                  <input name="age" type="number" min="18" max="99" value="${member.age}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">PAN Number</label>
+                  <input name="pan" type="text" value="${escapeAttr(member.pan)}" placeholder="ABCDE1234F" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white uppercase" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">TDS Slab</label>
+                  <select name="hasPan" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                    <option value="true" ${member.hasPan ? "selected" : ""}>PAN Verified (5% TDS)</option>
+                    <option value="false" ${!member.hasPan ? "selected" : ""}>No PAN (20% TDS)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">Village / Locality *</label>
+                <input name="village" type="text" value="${escapeAttr(member.address.village)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <input name="postBlock" type="text" value="${escapeAttr(member.address.postBlock)}" placeholder="Post / Block" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                <input name="district" type="text" value="${escapeAttr(member.address.district)}" placeholder="District" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <input name="state" type="text" value="${escapeAttr(member.address.state)}" placeholder="State" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                <input name="pin" type="text" value="${escapeAttr(member.address.pin)}" placeholder="PIN Code" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Name *</label>
+                  <input name="nomineeName" type="text" value="${escapeAttr(member.nominee.name)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Relation *</label>
+                  <select name="nomineeRelation" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                    ${["Spouse", "Father", "Mother", "Son", "Daughter", "Brother", "Sister", "Other"].map(rel =>
+                      `<option value="${rel}" ${member.nominee.relation === rel ? "selected" : ""}>${rel}</option>`
+                    ).join("")}
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Age *</label>
+                  <input name="nomineeAge" type="number" min="1" max="100" value="${member.nominee.age}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Mobile</label>
+                  <input name="nomineeContact" type="tel" value="${escapeAttr(member.nominee.contact || "")}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow">
+              Save Profile & Bank Details
+            </button>
+          </form>
 
           <form onsubmit="handleChangePassword(event, '${member.id}')" class="bg-slate-800 border border-sky-500/40 rounded-2xl p-4 space-y-2.5 text-xs">
             <div class="flex items-center justify-between">
@@ -1290,7 +1511,7 @@
     }
 
     // =========================================================================
-    // 7. ADMIN VIEWS (FULL ACCOUNT EDIT PERMISSION, UTR CHECK, PROFIT, TAX)
+    // 7. ADMIN VIEWS (UTR CHECK, ADMIN PAYOUT SYSTEM, EDIT IDs, PROFIT, TAX)
     // =========================================================================
     function renderAdminView() {
       if (!state.adminLoggedIn) {
@@ -1317,6 +1538,7 @@
       }
 
       if (state.adminTab === "utr") return renderAdminUtrVerification();
+      if (state.adminTab === "payouts") return renderAdminPayoutCenter();
       if (state.adminTab === "members") return renderAdminMembers();
       if (state.adminTab === "tds") return renderAdminTdsList();
       if (state.adminTab === "deposit") return renderAdminTaxDeposits();
@@ -1324,6 +1546,7 @@
 
       const totalTdsLiability = state.tdsEntries.reduce((acc, r) => acc + r.tdsAmount, 0);
       const activeMembersCount = state.members.filter(m => m.status === "ACTIVE").length;
+      const totalDueWallet = state.members.reduce((acc, m) => acc + (m.cashWallet || 0), 0);
 
       return `
         <div class="space-y-4">
@@ -1345,8 +1568,9 @@
               <div class="text-lg font-extrabold text-white mt-1">₹${state.companyTotalCollection.toLocaleString("en-IN")}</div>
             </div>
             <div class="bg-slate-800 border border-amber-500/30 rounded-xl p-3.5">
-              <div class="text-[11px] text-slate-400">Member Cash Payouts</div>
-              <div class="text-lg font-extrabold text-amber-300 mt-1">₹${state.totalMemberCashPayouts.toLocaleString("en-IN")}</div>
+              <div class="text-[11px] text-slate-400">Due Member Payouts</div>
+              <div class="text-lg font-extrabold text-amber-300 mt-1">₹${totalDueWallet.toLocaleString("en-IN")}</div>
+              <div class="text-[10px] text-emerald-400 mt-0.5">Paid Out: ₹${(state.totalDisbursedToMembers || 0).toLocaleString("en-IN")}</div>
             </div>
             <div class="bg-slate-800 border border-rose-500/30 rounded-xl p-3.5">
               <div class="text-[11px] text-slate-400">Govt Tax / TDS Payable</div>
@@ -1354,9 +1578,14 @@
             </div>
           </div>
 
-          <div class="bg-emerald-950/60 border-2 border-emerald-400/70 rounded-2xl p-4 space-y-1">
-            <div class="text-xs font-bold text-emerald-300 uppercase">Admin Net Profit Balance (10% Admin Charges)</div>
-            <div class="text-2xl font-extrabold text-emerald-400">₹${state.adminNetProfitBalance.toLocaleString("en-IN")}</div>
+          <div class="bg-emerald-950/60 border-2 border-emerald-400/70 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-emerald-300 uppercase">Admin Net Profit Balance (10% Admin Charges)</div>
+              <div class="text-2xl font-extrabold text-emerald-400">₹${state.adminNetProfitBalance.toLocaleString("en-IN")}</div>
+            </div>
+            <button type="button" onclick="setAdminTab('payouts')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shrink-0">
+              Pay Members →
+            </button>
           </div>
 
           <form onsubmit="handleSaveAdminPaymentDetails(event)" class="bg-slate-800 border border-sky-500/40 rounded-2xl p-4 space-y-2.5 text-xs">
@@ -1400,6 +1629,146 @@
           <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2">
             <button type="button" onclick="closeCurrentSessionManual()" class="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs py-2.5 rounded-xl">Close Current Session Now</button>
             <button type="button" onclick="resetToZeroState()" class="w-full bg-slate-900 hover:bg-rose-950 text-rose-300 border border-rose-500/40 font-semibold text-xs py-2.5 rounded-xl">Reset All Data to 0</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAdminPayoutCenter() {
+      const membersWithDue = state.members.filter(m => (m.cashWallet || 0) > 0);
+      const payingMember = state.payingMemberId ? ensureMemberBoardSchema(getMemberById(state.payingMemberId)) : null;
+      const totalDue = membersWithDue.reduce((acc, m) => acc + (m.cashWallet || 0), 0);
+
+      return `
+        <div class="space-y-3">
+          <div class="bg-slate-800 border border-emerald-500/40 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base font-bold text-emerald-300">Admin Member Payout Center</h2>
+              <p class="text-xs text-slate-400">Due Wallet: <b class="text-amber-300">₹${totalDue.toLocaleString("en-IN")}</b> • Total Paid: <b class="text-emerald-400">₹${(state.totalDisbursedToMembers || 0).toLocaleString("en-IN")}</b></p>
+            </div>
+            ${renderAdminLogoutButton()}
+          </div>
+
+          ${payingMember ? (() => {
+            const bd = payingMember.bankDetails;
+            const upiPayUrl = bd.upiId
+              ? `upi://pay?pa=${encodeURIComponent(bd.upiId)}&pn=${encodeURIComponent(bd.accountHolder || payingMember.name)}&am=${payingMember.cashWallet}&cu=INR&tn=${encodeURIComponent("SMPL-Payout-" + payingMember.id)}`
+              : "";
+            return `
+              <form onsubmit="handleAdminRecordPayout(event, '${payingMember.id}')" class="bg-slate-900 border-2 border-emerald-400 rounded-2xl p-4 space-y-3 text-xs">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-sm font-bold text-emerald-300">Pay Payout to ${escapeHtml(payingMember.name)} (${payingMember.id})</div>
+                    <div class="text-[11px] text-slate-400">Available Cash Wallet: <b class="text-amber-300">₹${payingMember.cashWallet.toLocaleString("en-IN")}</b></div>
+                  </div>
+                  <button type="button" onclick="closeAdminPayForm()" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">Cancel</button>
+                </div>
+
+                <div class="bg-slate-950 border border-slate-700 rounded-xl p-3 space-y-1.5">
+                  <div class="font-bold text-amber-300">Member Saved Bank / UPI Details</div>
+                  <div>Holder: <b class="text-white">${escapeHtml(bd.accountHolder || payingMember.name)}</b></div>
+                  <div>Bank: <b class="text-white">${escapeHtml(bd.bankName || "Not Added")}</b></div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span>A/C: <b class="font-mono text-white">${escapeHtml(bd.accountNumber || "Not Added")}</b></span>
+                    ${bd.accountNumber ? `<button type="button" onclick="copyTextValue('${escapeAttr(bd.accountNumber)}', 'Account Number', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy A/C</button>` : ""}
+                  </div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span>IFSC: <b class="font-mono text-amber-300">${escapeHtml(bd.ifscCode || "Not Added")}</b></span>
+                    ${bd.ifscCode ? `<button type="button" onclick="copyTextValue('${escapeAttr(bd.ifscCode)}', 'IFSC Code', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy IFSC</button>` : ""}
+                  </div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span>UPI: <b class="font-mono text-emerald-300">${escapeHtml(bd.upiId || "Not Added")}</b></span>
+                    <div class="flex gap-1.5">
+                      ${upiPayUrl ? `<a href="${escapeAttr(upiPayUrl)}" class="bg-sky-500 text-slate-950 font-extrabold px-2.5 py-0.5 rounded">Pay via UPI App</a>` : ""}
+                      ${bd.upiId ? `<button type="button" onclick="copyTextValue('${escapeAttr(bd.upiId)}', 'Member UPI', this)" class="bg-emerald-600 text-slate-950 font-bold px-2 py-0.5 rounded">Copy UPI</button>` : ""}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-slate-300 mb-1">Payout Amount (₹) *</label>
+                    <input name="amount" type="number" min="1" max="${payingMember.cashWallet}" value="${payingMember.cashWallet}" required class="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-xs font-bold text-emerald-300" />
+                  </div>
+                  <div>
+                    <label class="block text-slate-300 mb-1">Payment Mode *</label>
+                    <select name="mode" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                      <option value="UPI">UPI Transfer</option>
+                      <option value="IMPS / NEFT">Bank IMPS / NEFT</option>
+                      <option value="CASH">Cash Handover</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-slate-300 mb-1">Transaction / UTR / Receipt Reference *</label>
+                  <input name="refNo" type="text" placeholder="Enter Bank UTR / UPI Ref No." required class="w-full bg-slate-950 border border-amber-400/50 rounded-xl px-3 py-2 text-xs font-mono text-amber-200 uppercase" />
+                </div>
+
+                <div>
+                  <label class="block text-slate-300 mb-1">Remark (Optional)</label>
+                  <input name="note" type="text" placeholder="e.g. Session payout settled" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow">
+                  ✓ Confirm Paid & Deduct from Member Wallet
+                </button>
+              </form>
+            `;
+          })() : ""}
+
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2.5 text-xs">
+            <h3 class="text-sm font-bold text-amber-300">Members Pending Payout (${membersWithDue.length})</h3>
+            ${membersWithDue.length === 0
+              ? `<div class="text-slate-400 py-2">Abhi kisi member ka unpaid Cash Wallet balance due nahi hai.</div>`
+              : membersWithDue.map(m => {
+                  ensureMemberBoardSchema(m);
+                  const bd = m.bankDetails;
+                  return `
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-2">
+                      <div class="flex items-center justify-between gap-2">
+                        <div>
+                          <div class="font-bold text-white text-sm">${escapeHtml(m.name)} <span class="font-mono text-amber-300 text-xs">(${m.id})</span></div>
+                          <div class="text-[11px] text-slate-300 mt-0.5">
+                            ${bd.accountNumber || bd.upiId
+                              ? `${bd.bankName ? escapeHtml(bd.bankName) + " • " : ""}${bd.accountNumber ? "A/C " + escapeHtml(bd.accountNumber) + " (" + escapeHtml(bd.ifscCode) + ")" : ""} ${bd.upiId ? "• UPI: " + escapeHtml(bd.upiId) : ""}`
+                              : `<span class="text-rose-300 font-semibold">Bank/UPI Not Added — Edit ID mein add karein</span>`}
+                          </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <div class="text-[10px] text-slate-400">Due Cash</div>
+                          <div class="text-base font-extrabold text-emerald-400">₹${m.cashWallet.toLocaleString("en-IN")}</div>
+                        </div>
+                      </div>
+                      <div class="flex gap-2">
+                        <button type="button" onclick="openAdminPayForm('${m.id}')" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2 rounded-lg">
+                          ₹ Pay Now / Record Payout
+                        </button>
+                        <button type="button" onclick="openAdminEditMember('${m.id}')" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-3 py-2 rounded-lg">
+                          Edit Bank
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                }).join("")
+            }
+          </div>
+
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2 text-xs">
+            <h3 class="text-sm font-bold text-sky-300">Completed Payout History (${state.payoutRecords.length})</h3>
+            ${state.payoutRecords.length === 0
+              ? `<div class="text-slate-400">Abhi tak koi payout record nahi hai.</div>`
+              : state.payoutRecords.map(p => `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 flex items-center justify-between gap-2">
+                  <div>
+                    <div class="font-bold text-white">${escapeHtml(p.memberName)} (${p.memberId}) — <span class="text-emerald-400">₹${p.amount.toLocaleString("en-IN")}</span></div>
+                    <div class="text-slate-400">Mode: <b>${escapeHtml(p.mode)}</b> | Ref: <span class="font-mono text-amber-300">${escapeHtml(p.refNo)}</span></div>
+                    <div class="text-[10px] text-slate-500">${escapeHtml(p.paidAt)}${p.note ? " • " + escapeHtml(p.note) : ""}</div>
+                  </div>
+                  <span class="bg-emerald-500/20 text-emerald-300 font-bold text-[10px] px-2 py-1 rounded-full shrink-0">PAID</span>
+                </div>
+              `).join("")
+            }
           </div>
         </div>
       `;
@@ -1451,15 +1820,15 @@
     }
 
     function renderAdminMembers() {
-      const editingMember = state.editingMemberId ? getMemberById(state.editingMemberId) : null;
-      const selected = state.selectedAdminMemberId ? getMemberById(state.selectedAdminMemberId) : null;
+      const editingMember = state.editingMemberId ? ensureMemberBoardSchema(getMemberById(state.editingMemberId)) : null;
+      const selected = state.selectedAdminMemberId ? ensureMemberBoardSchema(getMemberById(state.selectedAdminMemberId)) : null;
 
       return `
         <div class="space-y-3">
           <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-2">
             <div>
-              <h2 class="text-base font-bold text-white">All Members & Admin Account Editor (${state.members.length})</h2>
-              <p class="text-xs text-slate-400">Admin kisi bhi member ke account details, password, board level, wallet, PAN, aur nominee edit kar sakta hai.</p>
+              <h2 class="text-base font-bold text-white">All Members & Payout Bank Details (${state.members.length})</h2>
+              <p class="text-xs text-slate-400">Admin kisi bhi member ke Bank A/C, IFSC, UPI, password, board level, wallet aur PAN edit/copy kar sakta hai.</p>
             </div>
             ${renderAdminLogoutButton()}
           </div>
@@ -1494,6 +1863,35 @@
                   </select>
                 </div>
               </div>
+
+              <div class="border-t border-slate-800 pt-2 space-y-2">
+                <div class="font-bold text-amber-300">Member Payout Bank & UPI Details</div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-slate-300 mb-1">Account Holder</label>
+                    <input name="accountHolder" type="text" value="${escapeAttr(editingMember.bankDetails.accountHolder || editingMember.name)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                  </div>
+                  <div>
+                    <label class="block text-slate-300 mb-1">Bank Name</label>
+                    <input name="bankName" type="text" value="${escapeAttr(editingMember.bankDetails.bankName)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-slate-300 mb-1">Account Number</label>
+                    <input name="accountNumber" type="text" value="${escapeAttr(editingMember.bankDetails.accountNumber)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-white" />
+                  </div>
+                  <div>
+                    <label class="block text-slate-300 mb-1">IFSC Code</label>
+                    <input name="ifscCode" type="text" value="${escapeAttr(editingMember.bankDetails.ifscCode)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-amber-300 uppercase" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">UPI ID</label>
+                  <input name="upiId" type="text" value="${escapeAttr(editingMember.bankDetails.upiId)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-emerald-300" />
+                </div>
+              </div>
+
               <div class="grid grid-cols-3 gap-2">
                 <div>
                   <label class="block text-slate-300 mb-1">Unlocked Board (1-11)</label>
@@ -1546,27 +1944,54 @@
                 <button type="button" onclick="selectAdminMember(null)" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">Close</button>
               </div>
               <div>Password: <span class="font-mono text-white">${escapeHtml(selected.password)}</span> | Status: <b>${selected.status}</b></div>
-              <div>Mode: <b>${escapeHtml(selected.paymentMode || "UPI")}</b> | UTR: <span class="font-mono text-amber-300">${escapeHtml(selected.utrNumber)}</span> | Running Boards: #1 to #${selected.activePackageLevel}</div>
-              <div>Cash Wallet: <b class="text-emerald-400">₹${selected.cashWallet}</b> | Activation PV: <b class="text-amber-300">${selected.upgradeWalletPv} PV</b></div>
+              <div>Due Cash Wallet: <b class="text-emerald-400">₹${selected.cashWallet}</b> | Paid Out: <b class="text-sky-300">₹${selected.totalCashPaidOut || 0}</b></div>
+
+              <div class="bg-slate-950 border border-emerald-500/40 rounded-xl p-2.5 space-y-1.5">
+                <div class="font-bold text-emerald-300">Member Payout Bank & UPI</div>
+                <div>Holder: <b class="text-white">${escapeHtml(selected.bankDetails.accountHolder || selected.name)}</b></div>
+                <div>Bank: <b class="text-white">${escapeHtml(selected.bankDetails.bankName || "Not Added")}</b></div>
+                <div class="flex items-center justify-between gap-2">
+                  <span>A/C: <b class="font-mono text-white">${escapeHtml(selected.bankDetails.accountNumber || "Not Added")}</b></span>
+                  ${selected.bankDetails.accountNumber ? `<button type="button" onclick="copyTextValue('${escapeAttr(selected.bankDetails.accountNumber)}', 'Member A/C', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy A/C</button>` : ""}
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <span>IFSC: <b class="font-mono text-amber-300">${escapeHtml(selected.bankDetails.ifscCode || "Not Added")}</b></span>
+                  ${selected.bankDetails.ifscCode ? `<button type="button" onclick="copyTextValue('${escapeAttr(selected.bankDetails.ifscCode)}', 'Member IFSC', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy IFSC</button>` : ""}
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <span>UPI: <b class="font-mono text-emerald-300">${escapeHtml(selected.bankDetails.upiId || "Not Added")}</b></span>
+                  ${selected.bankDetails.upiId ? `<button type="button" onclick="copyTextValue('${escapeAttr(selected.bankDetails.upiId)}', 'Member UPI', this)" class="bg-emerald-600 text-slate-950 font-bold px-2 py-0.5 rounded">Copy UPI</button>` : ""}
+                </div>
+              </div>
+
               <div>Nominee: ${escapeHtml(selected.nominee.name)} (${escapeHtml(selected.nominee.relation)}, Age ${selected.nominee.age})</div>
-              <div class="flex gap-2 pt-1">
+              <div class="flex flex-wrap gap-2 pt-1">
+                ${selected.cashWallet > 0 ? `<button type="button" onclick="openAdminPayForm('${selected.id}')" class="bg-emerald-500 text-slate-950 font-extrabold px-3 py-1.5 rounded-lg">₹ Pay Payout</button>` : ""}
                 <button type="button" onclick="openAdminEditMember('${selected.id}')" class="bg-sky-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg">✎ Edit Account</button>
-                <button type="button" onclick="inspectMemberDashboard('${selected.id}')" class="bg-emerald-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg">View Left/Right Tree</button>
+                <button type="button" onclick="inspectMemberDashboard('${selected.id}')" class="bg-slate-700 text-white font-bold px-3 py-1.5 rounded-lg">View L/R Tree</button>
               </div>
             </div>
           ` : ""}
 
           ${state.members.map(m => {
+            ensureMemberBoardSchema(m);
             const lCount = collectLegMembers(m.leftChildId).length;
             const rCount = collectLegMembers(m.rightChildId).length;
+            const hasPayoutBank = Boolean(m.bankDetails.accountNumber || m.bankDetails.upiId);
             return `
               <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5 flex items-center justify-between gap-2">
                 <div onclick="selectAdminMember('${m.id}')" class="cursor-pointer min-w-0">
                   <div class="text-xs font-mono text-amber-300">${m.id} • ${escapeHtml(m.placement)} • ${m.status}</div>
                   <div class="text-sm font-bold text-white truncate">${escapeHtml(m.name)}</div>
-                  <div class="text-[11px] text-slate-400">Left: <b>${lCount}</b> | Right: <b>${rCount}</b> | Boards: <b>#1–#${m.activePackageLevel}</b></div>
+                  <div class="text-[11px] text-slate-400">Due: <b class="text-emerald-400">₹${m.cashWallet}</b> | Paid: <b class="text-sky-300">₹${m.totalCashPaidOut || 0}</b> | L:${lCount} R:${rCount}</div>
+                  <div class="text-[10px] mt-0.5 ${hasPayoutBank ? 'text-emerald-300' : 'text-amber-300'}">
+                    ${hasPayoutBank
+                      ? `Payout: ${escapeHtml(m.bankDetails.bankName || "UPI")} ${m.bankDetails.accountNumber ? "• A/C " + escapeHtml(m.bankDetails.accountNumber) : ""} ${m.bankDetails.upiId ? "• " + escapeHtml(m.bankDetails.upiId) : ""}`
+                      : "Bank/UPI: Pending Profile Update"}
+                  </div>
                 </div>
                 <div class="flex flex-col gap-1 shrink-0">
+                  ${m.cashWallet > 0 ? `<button type="button" onclick="openAdminPayForm('${m.id}')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[11px] px-2.5 py-1 rounded-lg">₹ Pay</button>` : ""}
                   <button type="button" onclick="openAdminEditMember('${m.id}')" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] px-2.5 py-1 rounded-lg">Edit</button>
                   <button type="button" onclick="inspectMemberDashboard('${m.id}')" class="bg-slate-700 hover:bg-slate-600 text-white font-semibold text-[11px] px-2.5 py-1 rounded-lg">L/R Tree</button>
                 </div>
@@ -1674,12 +2099,13 @@
 
     function renderAdminBottomNav() {
       const pendingCount = state.members.filter(m => m.status === "PENDING").length;
+      const duePayCount = state.members.filter(m => (m.cashWallet || 0) > 0).length;
       const tabs = [
         { id: "utr", label: pendingCount > 0 ? `UTR (${pendingCount})` : "UTR Check" },
-        { id: "overview", label: "Profit/UPI" },
+        { id: "payouts", label: duePayCount > 0 ? `Pay (${duePayCount})` : "Pay Out" },
         { id: "members", label: "Edit IDs" },
+        { id: "overview", label: "Profit/UPI" },
         { id: "tds", label: "PAN TDS" },
-        { id: "deposit", label: "Tax Dept" },
         { id: "media", label: "News/YT" }
       ];
       return `
@@ -1694,7 +2120,10 @@
     function switchRole(role) { state.roleView = role; saveState(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
     function setMemberTab(tab) { state.memberTab = tab; saveState(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
     function setAdminTab(tab) { state.adminTab = tab; saveState(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
-    function updateJoinPackagePreview(levelStr) { state.selectedJoinPkgLevel = parseInt(levelStr || "1", 10); render(); }
+    function updateJoinPackagePreview(levelStr) {
+      state.selectedJoinPkgLevel = parseInt(levelStr || "1", 10);
+      render();
+    }
     function setPaymentMode(mode) { state.selectedPaymentMode = mode; render(); }
     function clearCreatedBanner() { state.lastCreatedCredentials = null; saveState(); render(); }
     function selectAdminMember(id) { state.selectedAdminMemberId = id; render(); }
@@ -1711,6 +2140,64 @@
       render();
     }
 
+    function openAdminPayForm(id) {
+      state.adminTab = "payouts";
+      state.payingMemberId = id;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function closeAdminPayForm() {
+      state.payingMemberId = null;
+      render();
+    }
+
+    function handleAdminRecordPayout(event, memberId) {
+      event.preventDefault();
+      const m = getMemberById(memberId);
+      if (!m) return;
+      ensureMemberBoardSchema(m);
+      const fd = new FormData(event.target);
+      const amount = parseInt(fd.get("amount") || "0", 10);
+      const mode = (fd.get("mode") || "UPI").trim();
+      const refNo = (fd.get("refNo") || "").trim().toUpperCase();
+      const note = (fd.get("note") || "").trim();
+
+      if (isNaN(amount) || amount <= 0 || amount > m.cashWallet) {
+        alert(`Invalid payout amount! Available wallet: ₹${m.cashWallet}`);
+        return;
+      }
+      if (!refNo) {
+        alert("Please enter Transaction / UTR / Receipt Reference!");
+        return;
+      }
+
+      const nowStr = new Date().toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      });
+
+      m.cashWallet -= amount;
+      m.totalCashPaidOut = (m.totalCashPaidOut || 0) + amount;
+      state.totalDisbursedToMembers = (state.totalDisbursedToMembers || 0) + amount;
+
+      state.payoutRecords.unshift({
+        id: "PAY-" + Math.floor(10000 + Math.random() * 90000),
+        memberId: m.id,
+        memberName: m.name,
+        amount,
+        mode,
+        refNo,
+        note,
+        paidAt: nowStr
+      });
+
+      state.payingMemberId = null;
+      saveState();
+      render();
+      alert(`Payout of ₹${amount.toLocaleString("en-IN")} to ${m.name} (${m.id}) recorded! Ref: ${refNo}`);
+    }
+
     function inspectMemberDashboard(id) {
       state.activeMemberId = id;
       state.memberLoggedIn = true;
@@ -1719,6 +2206,55 @@
       saveState();
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function handleMemberProfileEdit(event, memberId) {
+      event.preventDefault();
+      const m = getMemberById(memberId);
+      if (!m) return;
+      ensureMemberBoardSchema(m);
+      const fd = new FormData(event.target);
+
+      const accountHolder = (fd.get("accountHolder") || m.name).trim();
+      const bankName = (fd.get("bankName") || "").trim();
+      const accountNumber = (fd.get("accountNumber") || "").trim();
+      const ifscCode = (fd.get("ifscCode") || "").trim().toUpperCase();
+      const upiId = (fd.get("upiId") || "").trim();
+
+      m.bankDetails = {
+        accountHolder,
+        bankName,
+        accountNumber,
+        ifscCode,
+        upiId
+      };
+      m.bankInfo = accountNumber
+        ? `${bankName} • ${accountNumber} (${ifscCode})`
+        : (upiId || "Pending Bank Update");
+
+      m.mobile = (fd.get("mobile") || m.mobile).trim();
+      m.age = parseInt(fd.get("age") || String(m.age), 10);
+      m.pan = (fd.get("pan") || "").trim().toUpperCase();
+      m.hasPan = fd.get("hasPan") === "true" && m.pan.length > 0;
+
+      m.address = {
+        village: (fd.get("village") || m.address.village).trim(),
+        postBlock: (fd.get("postBlock") || m.address.postBlock).trim(),
+        district: (fd.get("district") || m.address.district).trim(),
+        state: (fd.get("state") || m.address.state).trim(),
+        pin: (fd.get("pin") || m.address.pin).trim()
+      };
+
+      m.nominee = {
+        name: (fd.get("nomineeName") || m.nominee.name).trim(),
+        relation: (fd.get("nomineeRelation") || m.nominee.relation).trim(),
+        age: parseInt(fd.get("nomineeAge") || String(m.nominee.age), 10),
+        contact: (fd.get("nomineeContact") || "").trim()
+      };
+
+      saveState();
+      render();
+      alert("Profile, Bank Account, IFSC & UPI details saved successfully!");
     }
 
     function handleSaveMemberAccountEdit(event, memberId) {
@@ -1732,6 +2268,24 @@
       m.mobile = (fd.get("mobile") || m.mobile).trim();
       m.password = (fd.get("password") || m.password).trim();
       m.status = (fd.get("status") || m.status).trim();
+
+      const accountHolder = (fd.get("accountHolder") || m.name).trim();
+      const bankName = (fd.get("bankName") || "").trim();
+      const accountNumber = (fd.get("accountNumber") || "").trim();
+      const ifscCode = (fd.get("ifscCode") || "").trim().toUpperCase();
+      const upiId = (fd.get("upiId") || "").trim();
+
+      m.bankDetails = {
+        accountHolder,
+        bankName,
+        accountNumber,
+        ifscCode,
+        upiId
+      };
+      m.bankInfo = accountNumber
+        ? `${bankName} • ${accountNumber} (${ifscCode})`
+        : (upiId || "Pending Bank Update");
+
       const newLevel = parseInt(fd.get("activePackageLevel") || String(m.activePackageLevel), 10);
       m.activePackageLevel = newLevel;
       PACKAGES.forEach(p => {
@@ -1747,7 +2301,7 @@
       state.editingMemberId = null;
       saveState();
       render();
-      alert(`Account details for ${m.name} (${m.id}) updated successfully!`);
+      alert(`Account & Bank details for ${m.name} (${m.id}) updated successfully!`);
     }
 
     function handleMemberLogin() {
@@ -1815,8 +2369,13 @@
       const joiningAmount = parseInt(fd.get("joiningAmount") || String(pkgObj.amount), 10);
       const utrNumber = (fd.get("utrNumber") || "").trim().toUpperCase();
 
+      const bankName = (fd.get("bankName") || "").trim();
+      const accountNumber = (fd.get("accountNumber") || "").trim();
+      const ifscCode = (fd.get("ifscCode") || "").trim().toUpperCase();
+      const upiId = (fd.get("upiId") || "").trim();
+
       const sponsor = getMemberById(sponsorId) || state.members[0];
-      const newId = "SMPL" + (1001 + state.members.length);
+      const newId = generateNextMemberId();
       const panInput = (fd.get("pan") || "").trim().toUpperCase();
       const hasPan = fd.get("hasPan") === "true" && panInput.length > 0;
 
@@ -1844,7 +2403,14 @@
         },
         pan: panInput,
         hasPan,
-        bankInfo: "Pending Bank Update",
+        bankDetails: {
+          accountHolder: name,
+          bankName,
+          accountNumber,
+          ifscCode,
+          upiId
+        },
+        bankInfo: accountNumber ? `${bankName} • ${accountNumber} (${ifscCode})` : (upiId || "Pending Bank Update"),
         nominee: {
           name: (fd.get("nomineeName") || "").trim(),
           relation: (fd.get("nomineeRelation") || "Spouse").trim(),
@@ -1855,6 +2421,7 @@
         leftPv: 0,
         rightPv: 0,
         cashWallet: 0,
+        totalCashPaidOut: 0,
         upgradeWalletPv: 0,
         totalTdsDeposited: 0,
         boxes: createEmptyBoxes(pkgLevel)
@@ -1906,6 +2473,24 @@
       }
     }
 
+    function copyTextValue(val, label, btnEl) {
+      const clean = String(val || "").trim();
+      if (!clean) return;
+      const onSuccess = () => {
+        if (btnEl) {
+          const origText = btnEl.textContent;
+          btnEl.textContent = "✓ Copied";
+          setTimeout(() => { btnEl.textContent = origText; }, 1600);
+        }
+        showCopyToast(`${label} Copied: ${clean}`);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(clean).then(onSuccess).catch(() => mobileFallbackCopy(clean, onSuccess));
+      } else {
+        mobileFallbackCopy(clean, onSuccess);
+      }
+    }
+
     function copyFieldWithFeedback(btnEl, fieldKey, label) {
       const map = {
         adminAccountNumber: state.adminPaymentDetails.accountNumber,
@@ -1914,21 +2499,7 @@
       };
       const val = String(map[fieldKey] || "").trim();
       if (!val) return;
-
-      const onSuccess = () => {
-        if (btnEl) {
-          const origText = btnEl.textContent;
-          btnEl.textContent = "✓ Copied!";
-          setTimeout(() => { btnEl.textContent = origText; }, 1600);
-        }
-        showCopyToast(`${label} Copied: ${val}`);
-      };
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(val).then(onSuccess).catch(() => mobileFallbackCopy(val, onSuccess));
-      } else {
-        mobileFallbackCopy(val, onSuccess);
-      }
+      copyTextValue(val, label, btnEl);
     }
 
     function mobileFallbackCopy(val, onSuccess) {
@@ -1995,8 +2566,8 @@
 
     function escapeAttr(url) {
       const clean = String(url || "").trim();
-      if (/^(https?:\/\/|https:\/\/wa\.me\/)/i.test(clean)) return escapeHtml(clean);
-      return "https://youtube.com";
+      if (/^(https?:\/\/|https:\/\/wa\.me\/|upi:\/\/)/i.test(clean)) return escapeHtml(clean);
+      return escapeHtml(clean);
     }
 
     render();
