@@ -207,6 +207,103 @@
     }
 
     let state = loadState();
+    applyReferralParamsFromUrl();
+
+    function applyReferralParamsFromUrl() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const refId = (params.get("ref") || "").trim().toUpperCase();
+        const legParam = (params.get("leg") || "").trim().toUpperCase();
+        if (refId) {
+          const foundSponsor = getMemberById(refId);
+          state.activeMemberId = foundSponsor ? foundSponsor.id : refId;
+          state.roleView = "member";
+          state.memberTab = "join";
+        }
+        if (legParam === "LEFT" || legParam === "RIGHT") {
+          state.selectedJoinLeg = legParam;
+          if (!refId) {
+            state.roleView = "member";
+            state.memberTab = "join";
+          }
+        }
+      } catch (e) {}
+    }
+
+    function buildReferralLink(memberId, legSide) {
+      const cleanLeg = legSide === "RIGHT" ? "RIGHT" : "LEFT";
+      const baseUrl = window.location.origin + window.location.pathname;
+      return `${baseUrl}?ref=${encodeURIComponent(memberId)}&leg=${cleanLeg}`;
+    }
+
+    function buildWhatsappReferralUrl(memberId, memberName, legSide) {
+      const cleanLeg = legSide === "RIGHT" ? "RIGHT" : "LEFT";
+      const link = buildReferralLink(memberId, cleanLeg);
+      const msg =
+        `Namaste! GLOBAL SMPL • RD ENTERPRISES (190 PV 11-Boards Plan) mein join karne ke liye mera ${cleanLeg} LEG referral link:\n` +
+        `Sponsor ID: ${memberId} (${memberName})\n` +
+        `Leg: ${cleanLeg}\n` +
+        `Joining Link: ${link}`;
+      return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    }
+
+    function copyReferralLink(memberId, legSide, btnEl) {
+      const link = buildReferralLink(memberId, legSide);
+      const onSuccess = () => {
+        if (btnEl) {
+          const orig = btnEl.textContent;
+          btnEl.textContent = "✓ Copied!";
+          setTimeout(() => { btnEl.textContent = orig; }, 1600);
+        }
+        showCopyToast(`${legSide} Referral Link Copied`);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(onSuccess).catch(() => mobileFallbackCopy(link, onSuccess));
+      } else {
+        mobileFallbackCopy(link, onSuccess);
+      }
+    }
+
+    function renderReferralShareCard(member) {
+      const leftLink = buildReferralLink(member.id, "LEFT");
+      const rightLink = buildReferralLink(member.id, "RIGHT");
+      const leftWa = buildWhatsappReferralUrl(member.id, member.name, "LEFT");
+      const rightWa = buildWhatsappReferralUrl(member.id, member.name, "RIGHT");
+
+      return `
+        <div class="bg-slate-800/95 border border-emerald-500/40 rounded-2xl p-4 space-y-3 text-xs">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-bold text-emerald-300">WhatsApp Referral Links</h3>
+              <p class="text-[11px] text-slate-400">Link kholte hi Sponsor ID (${escapeHtml(member.id)}) aur Leg auto-fill hoga.</p>
+            </div>
+            <span class="text-[10px] font-mono bg-slate-900 text-amber-300 px-2 py-1 rounded-lg border border-slate-700">${escapeHtml(member.id)}</span>
+          </div>
+
+          <div class="bg-slate-900 border border-sky-500/30 rounded-xl p-2.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sky-300">◀ LEFT LEG Referral Link</span>
+              <div class="flex gap-1.5">
+                <button type="button" onclick="copyReferralLink('${escapeAttr(member.id)}', 'LEFT', this)" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">Copy</button>
+                <a href="${escapeAttr(leftWa)}" target="_blank" rel="noopener noreferrer" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-2.5 py-1 rounded-lg text-[11px]">WhatsApp</a>
+              </div>
+            </div>
+            <div class="font-mono text-[10px] text-slate-300 break-all bg-slate-950 px-2.5 py-1.5 rounded-lg">${escapeHtml(leftLink)}</div>
+          </div>
+
+          <div class="bg-slate-900 border border-purple-500/30 rounded-xl p-2.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-purple-300">RIGHT LEG Referral Link ▶</span>
+              <div class="flex gap-1.5">
+                <button type="button" onclick="copyReferralLink('${escapeAttr(member.id)}', 'RIGHT', this)" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">Copy</button>
+                <a href="${escapeAttr(rightWa)}" target="_blank" rel="noopener noreferrer" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-2.5 py-1 rounded-lg text-[11px]">WhatsApp</a>
+              </div>
+            </div>
+            <div class="font-mono text-[10px] text-slate-300 break-all bg-slate-950 px-2.5 py-1.5 rounded-lg">${escapeHtml(rightLink)}</div>
+          </div>
+        </div>
+      `;
+    }
 
     function loadState() {
       try {
@@ -513,7 +610,7 @@
 
     function openJoiningForLeg(sponsorId, legSide) {
       const sponsor = getMemberById(sponsorId) || state.members[0];
-      state.activeMemberId = sponsor.id;
+      state.activeMemberId = sponsor ? sponsor.id : sponsorId;
       state.roleView = "member";
       state.memberTab = "join";
       state.selectedJoinLeg = legSide === "RIGHT" ? "RIGHT" : "LEFT";
@@ -654,6 +751,8 @@
           <button type="button" onclick="logoutMember()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg">Logout</button>
         </div>
 
+        ${renderReferralShareCard(member)}
+
         <div class="grid grid-cols-2 gap-3">
           <div class="bg-slate-800 border border-emerald-500/30 rounded-xl p-3.5">
             <div class="text-[11px] text-slate-400">Cash Wallet (All Boards Pairs 1-4)</div>
@@ -736,6 +835,7 @@
     }
 
     function renderJoiningForm(defaultSponsor) {
+      const sponsorValue = defaultSponsor ? defaultSponsor.id : (state.activeMemberId || "SMPL1001");
       const selectedPkg = PACKAGES[state.selectedJoinPkgLevel - 1] || PACKAGES[0];
       const upiDeepLink = `upi://pay?pa=${encodeURIComponent(state.adminPaymentDetails.upiId)}&pn=${encodeURIComponent(state.adminPaymentDetails.accountHolder)}&am=${selectedPkg.amount}&cu=INR&tn=${encodeURIComponent("Board-" + selectedPkg.level + "-Joining")}`;
       const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiDeepLink)}`;
@@ -753,7 +853,7 @@
           <div class="grid grid-cols-2 gap-2.5">
             <div>
               <label class="block text-xs text-slate-300 mb-1">Sponsor ID *</label>
-              <input name="sponsorId" type="text" value="${defaultSponsor.id}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono" />
+              <input name="sponsorId" type="text" value="${escapeAttr(sponsorValue)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono" />
             </div>
             <div>
               <label class="block text-xs text-slate-300 mb-1">Placement Leg *</label>
@@ -1003,6 +1103,8 @@
     function renderBinaryTreeView(member) {
       const leftTeam = collectLegMembers(member.leftChildId);
       const rightTeam = collectLegMembers(member.rightChildId);
+      const leftWa = buildWhatsappReferralUrl(member.id, member.name, "LEFT");
+      const rightWa = buildWhatsappReferralUrl(member.id, member.name, "RIGHT");
 
       const renderTeamList = (items, accentClass) => {
         if (items.length === 0) {
@@ -1026,54 +1128,64 @@
       };
 
       return `
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-4">
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <h2 class="text-base font-bold text-white">Left & Right Complete Members List</h2>
-              <p class="text-xs text-slate-400">Left side aur Right side ke sabhi members ki poori list.</p>
+        <div class="space-y-4">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-4">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h2 class="text-base font-bold text-white">Left & Right Complete Members List</h2>
+                <p class="text-xs text-slate-400">Left side aur Right side ke sabhi members ki poori list.</p>
+              </div>
+              <button type="button" onclick="openJoiningDirectly()" class="bg-emerald-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shrink-0">+ Joining</button>
             </div>
-            <button type="button" onclick="openJoiningDirectly()" class="bg-emerald-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shrink-0">+ Joining</button>
-          </div>
 
-          <div class="bg-slate-900 border-2 border-emerald-500 rounded-xl p-3 text-center">
-            <div class="text-xs font-mono text-amber-300">${member.id}</div>
-            <div class="text-sm font-bold text-white">${escapeHtml(member.name)}</div>
-            <div class="text-[11px] text-emerald-400 mt-0.5">Running Boards: #1 to #${member.activePackageLevel} • Left: ${leftTeam.length} | Right: ${rightTeam.length}</div>
-          </div>
+            <div class="bg-slate-900 border-2 border-emerald-500 rounded-xl p-3 text-center">
+              <div class="text-xs font-mono text-amber-300">${member.id}</div>
+              <div class="text-sm font-bold text-white">${escapeHtml(member.name)}</div>
+              <div class="text-[11px] text-emerald-400 mt-0.5">Running Boards: #1 to #${member.activePackageLevel} • Left: ${leftTeam.length} | Right: ${rightTeam.length}</div>
+            </div>
 
-          <div class="grid grid-cols-2 gap-3 items-start">
-            <div class="bg-slate-900/90 border border-sky-500/40 rounded-xl p-2.5 space-y-2">
-              <div class="border-b border-sky-500/20 pb-1.5">
-                <div class="flex items-center justify-between">
-                  <span class="text-[11px] font-bold text-sky-400 uppercase">◀ Left Side</span>
-                  <span class="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${leftTeam.length}</span>
+            <div class="grid grid-cols-2 gap-3 items-start">
+              <div class="bg-slate-900/90 border border-sky-500/40 rounded-xl p-2.5 space-y-2">
+                <div class="border-b border-sky-500/20 pb-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-sky-400 uppercase">◀ Left Side</span>
+                    <span class="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${leftTeam.length}</span>
+                  </div>
+                  <div class="text-xs font-bold text-white mt-0.5">Left PV: ${member.leftPv.toLocaleString("en-IN")}</div>
                 </div>
-                <div class="text-xs font-bold text-white mt-0.5">Left PV: ${member.leftPv.toLocaleString("en-IN")}</div>
-              </div>
-              <div class="space-y-1.5 max-h-80 overflow-y-auto pr-0.5">
-                ${renderTeamList(leftTeam, "border-sky-500/30")}
-              </div>
-              <button type="button" onclick="openJoiningForLeg('${member.id}', 'LEFT')" class="w-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold text-[10px] py-1.5 rounded-lg">
-                + Add Left Joining
-              </button>
-            </div>
-
-            <div class="bg-slate-900/90 border border-purple-500/40 rounded-xl p-2.5 space-y-2">
-              <div class="border-b border-purple-500/20 pb-1.5">
-                <div class="flex items-center justify-between">
-                  <span class="text-[11px] font-bold text-purple-400 uppercase">Right Side ▶</span>
-                  <span class="text-[10px] font-bold bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">${rightTeam.length}</span>
+                <div class="space-y-1.5 max-h-80 overflow-y-auto pr-0.5">
+                  ${renderTeamList(leftTeam, "border-sky-500/30")}
                 </div>
-                <div class="text-xs font-bold text-white mt-0.5">Right PV: ${member.rightPv.toLocaleString("en-IN")}</div>
+                <a href="${escapeAttr(leftWa)}" target="_blank" rel="noopener noreferrer" class="block text-center w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[10px] py-1.5 rounded-lg">
+                  WhatsApp Left Link
+                </a>
+                <button type="button" onclick="openJoiningForLeg('${member.id}', 'LEFT')" class="w-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold text-[10px] py-1.5 rounded-lg">
+                  + Add Left Joining
+                </button>
               </div>
-              <div class="space-y-1.5 max-h-80 overflow-y-auto pr-0.5">
-                ${renderTeamList(rightTeam, "border-purple-500/30")}
+
+              <div class="bg-slate-900/90 border border-purple-500/40 rounded-xl p-2.5 space-y-2">
+                <div class="border-b border-purple-500/20 pb-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-purple-400 uppercase">Right Side ▶</span>
+                    <span class="text-[10px] font-bold bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">${rightTeam.length}</span>
+                  </div>
+                  <div class="text-xs font-bold text-white mt-0.5">Right PV: ${member.rightPv.toLocaleString("en-IN")}</div>
+                </div>
+                <div class="space-y-1.5 max-h-80 overflow-y-auto pr-0.5">
+                  ${renderTeamList(rightTeam, "border-purple-500/30")}
+                </div>
+                <a href="${escapeAttr(rightWa)}" target="_blank" rel="noopener noreferrer" class="block text-center w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[10px] py-1.5 rounded-lg">
+                  WhatsApp Right Link
+                </a>
+                <button type="button" onclick="openJoiningForLeg('${member.id}', 'RIGHT')" class="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 font-bold text-[10px] py-1.5 rounded-lg">
+                  + Add Right Joining
+                </button>
               </div>
-              <button type="button" onclick="openJoiningForLeg('${member.id}', 'RIGHT')" class="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 font-bold text-[10px] py-1.5 rounded-lg">
-                + Add Right Joining
-              </button>
             </div>
           </div>
+
+          ${renderReferralShareCard(member)}
         </div>
       `;
     }
@@ -1120,6 +1232,8 @@
     function renderMemberProfile(member) {
       return `
         <div class="space-y-4">
+          ${renderReferralShareCard(member)}
+
           <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3 text-xs">
             <h2 class="text-base font-bold text-white">Member Complete Profile</h2>
             <div class="space-y-1.5 text-slate-300">
@@ -1881,7 +1995,7 @@
 
     function escapeAttr(url) {
       const clean = String(url || "").trim();
-      if (/^https?:\/\//i.test(clean)) return escapeHtml(clean);
+      if (/^(https?:\/\/|https:\/\/wa\.me\/)/i.test(clean)) return escapeHtml(clean);
       return "https://youtube.com";
     }
 
