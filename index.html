@@ -1,1 +1,2734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>GLOBAL SMPL | RD ENTERPRISES - 190 PV 11-Boards Binary Plan (1 PV = ₹1)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 0;
+    }
+    .mobile-shell {
+      max-width: 520px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background-color: #111827;
+      box-shadow: 0 0 40px rgba(0,0,0,0.7);
+      position: relative;
+      padding-bottom: 108px;
+    }
+    @keyframes tickerScroll {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(-50%); }
+    }
+    .ticker-track {
+      display: flex;
+      width: max-content;
+      animation: tickerScroll 24s linear infinite;
+    }
+    .ticker-track:hover {
+      animation-play-state: paused;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="mobile-shell"></div>
 
+  <script>
+    const PACKAGES = [
+      { level: 1,  name: "Starter Box 1",     pv: 190,    amount: 190,    pairIncome: 137 },
+      { level: 2,  name: "Growth Box 2",      pv: 380,    amount: 380,    pairIncome: 274 },
+      { level: 3,  name: "Builder Box 3",     pv: 760,    amount: 760,    pairIncome: 547 },
+      { level: 4,  name: "Advance Box 4",     pv: 1520,   amount: 1520,   pairIncome: 1094 },
+      { level: 5,  name: "Executive Box 5",   pv: 3040,   amount: 3040,   pairIncome: 2189 },
+      { level: 6,  name: "Senior Box 6",      pv: 6080,   amount: 6080,   pairIncome: 4378 },
+      { level: 7,  name: "Director Box 7",    pv: 12160,  amount: 12160,  pairIncome: 8755 },
+      { level: 8,  name: "Star Box 8",        pv: 24320,  amount: 24320,  pairIncome: 17510 },
+      { level: 9,  name: "Crown Box 9",       pv: 48640,  amount: 48640,  pairIncome: 35021 },
+      { level: 10, name: "Ambassador Box 10", pv: 97280,  amount: 97280,  pairIncome: 70042 },
+      { level: 11, name: "Legend Box 11",     pv: 286720, amount: 286720, pairIncome: 206438 }
+    ];
+
+    const SESSIONS = [
+      { id: 1, short: "S1", time: "06:00 AM - 08:15 AM", label: "Session 1 (06:00 AM - 08:15 AM)" },
+      { id: 2, short: "S2", time: "08:15 AM - 10:30 AM", label: "Session 2 (08:15 AM - 10:30 AM)" },
+      { id: 3, short: "S3", time: "10:30 AM - 12:45 PM", label: "Session 3 (10:30 AM - 12:45 PM)" },
+      { id: 4, short: "S4", time: "12:45 PM - 03:00 PM", label: "Session 4 (12:45 PM - 03:00 PM)" },
+      { id: 5, short: "S5", time: "03:00 PM - 05:15 PM", label: "Session 5 (03:00 PM - 05:15 PM)" },
+      { id: 6, short: "S6", time: "05:15 PM - 07:30 PM", label: "Session 6 (05:15 PM - 07:30 PM)" },
+      { id: 7, short: "S7", time: "07:30 PM - 09:45 PM", label: "Session 7 (07:30 PM - 09:45 PM)" },
+      { id: 8, short: "S8", time: "09:45 PM - 12:00 AM", label: "Session 8 (09:45 PM - 12:00 AM)" }
+    ];
+
+    const DEFAULT_PASSWORD = "1234";
+    const STORAGE_KEY = "global_smpl_190pv_11boards_v5";
+    const FIREBASE_DB_URL = "https://global-smpl-11-default-rtdb.asia-southeast1.firebasedatabase.app";
+    const FIREBASE_STATE_ENDPOINT = `${FIREBASE_DB_URL}/${STORAGE_KEY}.json`;
+
+    let lastCloudSyncAt = 0;
+    let isSyncingCloud = false;
+    let hasPendingCloudPush = false;
+
+    function createEmptyBoxes(unlockedUpToLevel) {
+      const boxStates = {};
+      PACKAGES.forEach(p => {
+        boxStates[p.level] = {
+          unlocked: p.level <= unlockedUpToLevel,
+          leftPv: 0,
+          rightPv: 0,
+          pairsCompleted: 0,
+          totalPairsMatched: 0,
+          cashEarned: 0,
+          upgradePvAccumulated: 0
+        };
+      });
+      return boxStates;
+    }
+
+    function ensureMemberBoardSchema(m) {
+      if (!m.boxes) m.boxes = createEmptyBoxes(m.activePackageLevel || 1);
+      if (!m.bankDetails || typeof m.bankDetails !== "object") {
+        m.bankDetails = {
+          accountHolder: m.name || "",
+          bankName: "",
+          accountNumber: "",
+          ifscCode: "",
+          upiId: ""
+        };
+      } else {
+        m.bankDetails.accountHolder = m.bankDetails.accountHolder || "";
+        m.bankDetails.bankName = m.bankDetails.bankName || "";
+        m.bankDetails.accountNumber = m.bankDetails.accountNumber || "";
+        m.bankDetails.ifscCode = m.bankDetails.ifscCode || "";
+        m.bankDetails.upiId = m.bankDetails.upiId || "";
+      }
+      if (!m.address || typeof m.address !== "object") {
+        m.address = { village: "", postBlock: "", district: "", state: "Odisha", pin: "" };
+      }
+      if (!m.nominee || typeof m.nominee !== "object") {
+        m.nominee = { name: "", relation: "Spouse", age: 25, contact: "" };
+      }
+      if (typeof m.totalCashPaidOut !== "number") {
+        m.totalCashPaidOut = 0;
+      }
+      PACKAGES.forEach(p => {
+        const isUnlockedForMember = p.level <= (m.activePackageLevel || 1);
+        if (!m.boxes[p.level]) {
+          m.boxes[p.level] = {
+            unlocked: isUnlockedForMember,
+            leftPv: 0,
+            rightPv: 0,
+            pairsCompleted: 0,
+            totalPairsMatched: 0,
+            cashEarned: 0,
+            upgradePvAccumulated: 0
+          };
+        } else {
+          if (isUnlockedForMember) m.boxes[p.level].unlocked = true;
+          if (typeof m.boxes[p.level].leftPv !== "number") m.boxes[p.level].leftPv = 0;
+          if (typeof m.boxes[p.level].rightPv !== "number") m.boxes[p.level].rightPv = 0;
+          if (typeof m.boxes[p.level].pairsCompleted !== "number") m.boxes[p.level].pairsCompleted = 0;
+          if (typeof m.boxes[p.level].totalPairsMatched !== "number") m.boxes[p.level].totalPairsMatched = 0;
+          if (typeof m.boxes[p.level].cashEarned !== "number") m.boxes[p.level].cashEarned = 0;
+          if (typeof m.boxes[p.level].upgradePvAccumulated !== "number") m.boxes[p.level].upgradePvAccumulated = 0;
+        }
+      });
+      return m;
+    }
+
+    function createInitialState() {
+      return {
+        updatedAt: Date.now(),
+        currentSessionIdx: 0,
+        closedSessionsCount: 0,
+        companyMonthlyPv: 0,
+        companyTotalCollection: 0,
+        totalMemberCashPayouts: 0,
+        totalDisbursedToMembers: 0,
+        adminNetProfitBalance: 0,
+        adminExpenses: 0,
+        adminPaymentDetails: {
+          accountHolder: "GLOBAL SMPL / RD ENTERPRISES",
+          upiId: "9165131659-2@ybl",
+          bankName: "State Bank of India",
+          accountNumber: "44871128794",
+          ifscCode: "SBIN0005762",
+          qrNote: "Pay exact board amount via UPI / QR / Bank & enter UTR"
+        },
+        roleView: "member",
+        memberLoggedIn: false,
+        adminLoggedIn: false,
+        activeMemberId: "SMPL1001",
+        memberTab: "dashboard",
+        adminTab: "utr",
+        selectedAdminMemberId: null,
+        editingMemberId: null,
+        payingMemberId: null,
+        lastCreatedCredentials: null,
+        selectedJoinPkgLevel: 1,
+        selectedJoinLeg: "LEFT",
+        selectedPaymentMode: "UPI",
+        payoutRecords: [],
+        newsItems: [
+          { id: "N1", text: "GLOBAL SMPL • RD ENTERPRISES: 190 PV Base 11-Boards Plan (1 PV = ₹1) | All Unlocked Boards Run Simultaneously | Max 1 Pair/Board/Session | Power Leg Carry-Forward & Weaker Leg Lapse." }
+        ],
+        youtubeLinks: [
+          { id: "YT1", title: "190 PV 11-Boards Binary Plan Full Training", url: "https://youtube.com" }
+        ],
+        taxDeposits: [
+          {
+            id: "DEP-01",
+            month: "November 2026",
+            head: "Sec 194H / Commission TDS (Income Tax / TRACES)",
+            whereToDeposit: "NSDL / e-Filing Portal - Challan 281 (TDS/TCS)",
+            amount: 0,
+            status: "No Tax Due Yet",
+            challanNo: ""
+          }
+        ],
+        tdsEntries: [],
+        members: [
+          {
+            id: "SMPL1001",
+            password: DEFAULT_PASSWORD,
+            name: "Company Root ID",
+            mobile: "9000000001",
+            age: 35,
+            sponsorId: "COMPANY",
+            placement: "ROOT",
+            parentId: null,
+            leftChildId: null,
+            rightChildId: null,
+            paymentMode: "UPI",
+            utrNumber: "ROOT-VERIFIED",
+            joiningAmount: 190,
+            status: "ACTIVE",
+            address: {
+              village: "Main Office",
+              postBlock: "Rourkela",
+              district: "Sundargarh",
+              state: "Odisha",
+              pin: "769001"
+            },
+            pan: "ABCDE1234F",
+            hasPan: true,
+            bankDetails: {
+              accountHolder: "Company Root ID",
+              bankName: "State Bank of India",
+              accountNumber: "44871128794",
+              ifscCode: "SBIN0005762",
+              upiId: "9165131659-2@ybl"
+            },
+            bankInfo: "Company Primary Account",
+            nominee: {
+              name: "Primary Nominee",
+              relation: "Spouse",
+              age: 32,
+              contact: "9000000002"
+            },
+            activePackageLevel: 1,
+            leftPv: 0,
+            rightPv: 0,
+            cashWallet: 0,
+            totalCashPaidOut: 0,
+            upgradeWalletPv: 0,
+            totalTdsDeposited: 0,
+            boxes: createEmptyBoxes(1)
+          }
+        ]
+      };
+    }
+
+    function normalizeStateData(parsed) {
+      const init = createInitialState();
+      const merged = {
+        ...init,
+        ...(parsed || {}),
+        updatedAt: (parsed && typeof parsed.updatedAt === "number") ? parsed.updatedAt : 0,
+        adminPaymentDetails: {
+          ...init.adminPaymentDetails,
+          ...(parsed && parsed.adminPaymentDetails ? parsed.adminPaymentDetails : {})
+        },
+        payoutRecords: Array.isArray(parsed && parsed.payoutRecords) ? parsed.payoutRecords : [],
+        newsItems: Array.isArray(parsed && parsed.newsItems) && parsed.newsItems.length > 0 ? parsed.newsItems : init.newsItems,
+        youtubeLinks: Array.isArray(parsed && parsed.youtubeLinks) && parsed.youtubeLinks.length > 0 ? parsed.youtubeLinks : init.youtubeLinks,
+        taxDeposits: Array.isArray(parsed && parsed.taxDeposits) && parsed.taxDeposits.length > 0 ? parsed.taxDeposits : init.taxDeposits,
+        tdsEntries: Array.isArray(parsed && parsed.tdsEntries) ? parsed.tdsEntries : []
+      };
+      const rawMembers = Array.isArray(parsed && parsed.members) && parsed.members.length > 0
+        ? parsed.members
+        : (parsed && parsed.members && typeof parsed.members === "object" ? Object.values(parsed.members) : init.members);
+      merged.members = rawMembers.map(ensureMemberBoardSchema);
+      return merged;
+    }
+
+    let state = loadState();
+    applyReferralParamsFromUrl();
+
+    function applyReferralParamsFromUrl() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const refId = (params.get("ref") || "").trim().toUpperCase();
+        const legParam = (params.get("leg") || "").trim().toUpperCase();
+        if (refId) {
+          const foundSponsor = getMemberById(refId);
+          state.activeMemberId = foundSponsor ? foundSponsor.id : refId;
+          state.roleView = "member";
+          state.memberTab = "join";
+        }
+        if (legParam === "LEFT" || legParam === "RIGHT") {
+          state.selectedJoinLeg = legParam;
+          if (!refId) {
+            state.roleView = "member";
+            state.memberTab = "join";
+          }
+        }
+      } catch (e) {}
+    }
+
+    function buildReferralLink(memberId, legSide) {
+      const cleanLeg = legSide === "RIGHT" ? "RIGHT" : "LEFT";
+      const baseUrl = window.location.origin + window.location.pathname;
+      return `${baseUrl}?ref=${encodeURIComponent(memberId)}&leg=${cleanLeg}`;
+    }
+
+    function buildWhatsappReferralUrl(memberId, memberName, legSide) {
+      const cleanLeg = legSide === "RIGHT" ? "RIGHT" : "LEFT";
+      const link = buildReferralLink(memberId, cleanLeg);
+      const msg =
+        `Namaste! GLOBAL SMPL • RD ENTERPRISES (190 PV 11-Boards Plan) mein join karne ke liye mera ${cleanLeg} LEG referral link:\n` +
+        `Sponsor ID: ${memberId} (${memberName})\n` +
+        `Leg: ${cleanLeg}\n` +
+        `Joining Link: ${link}`;
+      return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    }
+
+    function copyReferralLink(memberId, legSide, btnEl) {
+      const link = buildReferralLink(memberId, legSide);
+      const onSuccess = () => {
+        if (btnEl) {
+          const orig = btnEl.textContent;
+          btnEl.textContent = "✓ Copied!";
+          setTimeout(() => { btnEl.textContent = orig; }, 1600);
+        }
+        showCopyToast(`${legSide} Referral Link Copied`);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(onSuccess).catch(() => mobileFallbackCopy(link, onSuccess));
+      } else {
+        mobileFallbackCopy(link, onSuccess);
+      }
+    }
+
+    function renderReferralShareCard(member) {
+      const leftLink = buildReferralLink(member.id, "LEFT");
+      const rightLink = buildReferralLink(member.id, "RIGHT");
+      const leftWa = buildWhatsappReferralUrl(member.id, member.name, "LEFT");
+      const rightWa = buildWhatsappReferralUrl(member.id, member.name, "RIGHT");
+
+      return `
+        <div class="bg-slate-800/95 border border-emerald-500/40 rounded-2xl p-4 space-y-3 text-xs">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-bold text-emerald-300">WhatsApp Referral Links</h3>
+              <p class="text-[11px] text-slate-400">Link kholte hi Sponsor ID (${escapeHtml(member.id)}) aur Leg auto-fill hoga.</p>
+            </div>
+            <span class="text-[10px] font-mono bg-slate-900 text-amber-300 px-2 py-1 rounded-lg border border-slate-700">${escapeHtml(member.id)}</span>
+          </div>
+
+          <div class="bg-slate-900 border border-sky-500/30 rounded-xl p-2.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sky-300">◀ LEFT LEG Referral Link</span>
+              <div class="flex gap-1.5">
+                <button type="button" onclick="copyReferralLink('${escapeAttr(member.id)}', 'LEFT', this)" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">Copy</button>
+                <a href="${escapeAttr(leftWa)}" target="_blank" rel="noopener noreferrer" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-2.5 py-1 rounded-lg text-[11px]">WhatsApp</a>
+              </div>
+            </div>
+            <div class="font-mono text-[10px] text-slate-300 break-all bg-slate-950 px-2.5 py-1.5 rounded-lg">${escapeHtml(leftLink)}</div>
+          </div>
+
+          <div class="bg-slate-900 border border-purple-500/30 rounded-xl p-2.5 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-purple-300">RIGHT LEG Referral Link ▶</span>
+              <div class="flex gap-1.5">
+                <button type="button" onclick="copyReferralLink('${escapeAttr(member.id)}', 'RIGHT', this)" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-2.5 py-1 rounded-lg text-[11px]">Copy</button>
+                <a href="${escapeAttr(rightWa)}" target="_blank" rel="noopener noreferrer" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-2.5 py-1 rounded-lg text-[11px]">WhatsApp</a>
+              </div>
+            </div>
+            <div class="font-mono text-[10px] text-slate-300 break-all bg-slate-950 px-2.5 py-1.5 rounded-lg">${escapeHtml(rightLink)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function loadState() {
+      try {
+        ["global_smpl_190pv_11boards_v3", "global_smpl_190pv_11boards_v4"].forEach(oldKey => {
+          try { localStorage.removeItem(oldKey); } catch (err) {}
+        });
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return createInitialState();
+        return normalizeStateData(JSON.parse(raw));
+      } catch (e) {
+        return createInitialState();
+      }
+    }
+
+    async function pushStateToFirebase(snapshot) {
+      if (isSyncingCloud) {
+        hasPendingCloudPush = true;
+        return;
+      }
+      isSyncingCloud = true;
+      try {
+        await fetch(FIREBASE_STATE_ENDPOINT, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(snapshot)
+        });
+        lastCloudSyncAt = Date.now();
+      } catch (err) {
+        console.warn("Firebase push failed:", err);
+      } finally {
+        isSyncingCloud = false;
+        if (hasPendingCloudPush) {
+          hasPendingCloudPush = false;
+          pushStateToFirebase(state);
+        }
+      }
+    }
+
+    async function pullStateFromFirebase(shouldRenderIfNewer) {
+      if (isSyncingCloud || hasPendingCloudPush) return false;
+      try {
+        const res = await fetch(`${FIREBASE_STATE_ENDPOINT}?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) return false;
+        const remoteData = await res.json();
+        if (!remoteData) {
+          await pushStateToFirebase(state);
+          return false;
+        }
+        const normalizedRemote = normalizeStateData(remoteData);
+        const remoteTs = normalizedRemote.updatedAt || 0;
+        const localTs = state.updatedAt || 0;
+
+        if (remoteTs > localTs) {
+          const keepView = {
+            roleView: state.roleView,
+            memberLoggedIn: state.memberLoggedIn,
+            adminLoggedIn: state.adminLoggedIn,
+            activeMemberId: state.activeMemberId,
+            memberTab: state.memberTab,
+            adminTab: state.adminTab,
+            selectedAdminMemberId: state.selectedAdminMemberId,
+            editingMemberId: state.editingMemberId,
+            payingMemberId: state.payingMemberId,
+            lastCreatedCredentials: state.lastCreatedCredentials,
+            selectedJoinPkgLevel: state.selectedJoinPkgLevel,
+            selectedJoinLeg: state.selectedJoinLeg,
+            selectedPaymentMode: state.selectedPaymentMode
+          };
+          state = { ...normalizedRemote, ...keepView };
+          if (!getMemberById(state.activeMemberId)) {
+            state.activeMemberId = state.members[0] ? state.members[0].id : "SMPL1001";
+          }
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          } catch (e) {}
+          lastCloudSyncAt = Date.now();
+          if (shouldRenderIfNewer && !isUserEditingForm()) {
+            render();
+          }
+          return true;
+        } else if (localTs > remoteTs) {
+          await pushStateToFirebase(state);
+        }
+        return false;
+      } catch (err) {
+        console.warn("Firebase pull failed:", err);
+        return false;
+      }
+    }
+
+    function isUserEditingForm() {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = (el.tagName || "").toUpperCase();
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    }
+
+    function saveState() {
+      state.updatedAt = Date.now();
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn("Storage save failed", e);
+      }
+      pushStateToFirebase(state);
+    }
+
+    async function resetToZeroState() {
+      if (!confirm("Reset all data back to 0 turnover, ₹0 profit/payouts, and 1 Root Member?")) return;
+      ["global_smpl_190pv_11boards_v3", "global_smpl_190pv_11boards_v4", STORAGE_KEY].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
+      });
+      state = createInitialState();
+      state.updatedAt = Date.now();
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+      await pushStateToFirebase(state);
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function generateNextMemberId() {
+      let maxNum = 1000;
+      state.members.forEach(m => {
+        const match = /^SMPL(\d+)$/i.exec(String(m.id || "").trim());
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      });
+      return "SMPL" + (maxNum + 1);
+    }
+
+    function getMemberById(id) {
+      return state.members.find(m => m.id === id) || null;
+    }
+
+    function findPlacementSlot(startId, side) {
+      let current = getMemberById(startId);
+      if (!current) current = state.members[0];
+      const childKey = side === "LEFT" ? "leftChildId" : "rightChildId";
+      while (current && current[childKey]) {
+        const nextNode = getMemberById(current[childKey]);
+        if (!nextNode) break;
+        current = nextNode;
+      }
+      return { parent: current, side };
+    }
+
+    function collectLegMembers(startChildId) {
+      const list = [];
+      if (!startChildId) return list;
+      const queue = [{ id: startChildId, depth: 1 }];
+      const visited = new Set();
+      while (queue.length > 0 && list.length < 300) {
+        const curr = queue.shift();
+        if (!curr || visited.has(curr.id)) continue;
+        visited.add(curr.id);
+        const m = getMemberById(curr.id);
+        if (!m) continue;
+        list.push({ member: m, depth: curr.depth });
+        if (m.leftChildId) queue.push({ id: m.leftChildId, depth: curr.depth + 1 });
+        if (m.rightChildId) queue.push({ id: m.rightChildId, depth: curr.depth + 1 });
+      }
+      return list;
+    }
+
+    function propagateBoardPvUpward(childId, boardLevel, pvAmount, countMonthlyTurnover) {
+      let currChild = getMemberById(childId);
+      let guard = 0;
+      while (currChild && currChild.parentId && guard < 200) {
+        const parent = getMemberById(currChild.parentId);
+        if (!parent) break;
+        ensureMemberBoardSchema(parent);
+        const targetBox = parent.boxes[boardLevel];
+
+        if (parent.status === "ACTIVE" && targetBox && targetBox.unlocked) {
+          if (parent.leftChildId === currChild.id) {
+            targetBox.leftPv += pvAmount;
+          } else if (parent.rightChildId === currChild.id) {
+            targetBox.rightPv += pvAmount;
+          }
+        }
+        currChild = parent;
+        guard++;
+      }
+      recalculateMemberTotalPv(currChild);
+      state.members.forEach(m => recalculateMemberTotalPv(m));
+      if (countMonthlyTurnover) {
+        state.companyMonthlyPv += pvAmount;
+      }
+    }
+
+    function recalculateMemberTotalPv(m) {
+      if (!m) return;
+      ensureMemberBoardSchema(m);
+      let sumLeft = 0;
+      let sumRight = 0;
+      PACKAGES.forEach(p => {
+        sumLeft += m.boxes[p.level].leftPv;
+        sumRight += m.boxes[p.level].rightPv;
+      });
+      m.leftPv = sumLeft;
+      m.rightPv = sumRight;
+    }
+
+    function approveMemberUtr(memberId) {
+      const m = getMemberById(memberId);
+      if (!m || m.status === "ACTIVE") return;
+      ensureMemberBoardSchema(m);
+
+      const sponsor = getMemberById(m.sponsorId) || state.members[0];
+      const slot = findPlacementSlot(sponsor.id, m.placement);
+      m.parentId = slot.parent ? slot.parent.id : null;
+
+      if (slot.parent) {
+        if (m.placement === "LEFT") {
+          slot.parent.leftChildId = m.id;
+        } else {
+          slot.parent.rightChildId = m.id;
+        }
+      }
+
+      const pkgObj = PACKAGES[m.activePackageLevel - 1] || PACKAGES[0];
+      for (let lvl = 1; lvl <= pkgObj.level; lvl++) {
+        if (m.boxes[lvl]) m.boxes[lvl].unlocked = true;
+      }
+      m.status = "ACTIVE";
+      state.companyTotalCollection += m.joiningAmount;
+
+      propagateBoardPvUpward(m.id, pkgObj.level, pkgObj.pv, true);
+
+      saveState();
+      render();
+      alert(
+        `UTR Confirmed!\n` +
+        `${m.name} (${m.id}) is now ACTIVE on Board #${pkgObj.level} (${pkgObj.pv} PV).\n` +
+        `Member placed in ${m.placement} leg and PV credited to matching board!`
+      );
+    }
+
+    function markMemberUtrFake(memberId) {
+      const m = getMemberById(memberId);
+      if (!m || m.status === "ACTIVE") return;
+      m.status = "FAKE";
+      saveState();
+      render();
+    }
+
+    function deleteUnapprovedMember(memberId) {
+      const m = getMemberById(memberId);
+      if (!m || m.id === "SMPL1001" || m.status === "ACTIVE") return;
+      if (!confirm(`Delete entry for ${m.name} (${m.id})?`)) return;
+      state.members = state.members.filter(x => x.id !== memberId);
+      saveState();
+      render();
+    }
+
+    function closeCurrentSessionManual() {
+      if (!state.adminLoggedIn) {
+        alert("Sirf logged-in Admin hi session close kar sakta hai!");
+        state.roleView = "admin";
+        render();
+        return;
+      }
+
+      const closedSession = SESSIONS[state.currentSessionIdx];
+      let totalSessionNetCash = 0;
+      let totalSessionAdminCharge = 0;
+      let totalSessionTds = 0;
+      let totalPairsAcrossAllBoards = 0;
+      const upgradeEvents = [];
+
+      state.members.forEach(m => {
+        if (m.status !== "ACTIVE") return;
+        ensureMemberBoardSchema(m);
+
+        for (let lvl = 1; lvl <= PACKAGES.length; lvl++) {
+          const pkg = PACKAGES[lvl - 1];
+          const box = m.boxes[lvl];
+          if (!pkg || !box || !box.unlocked) continue;
+
+          if (box.leftPv >= pkg.pv && box.rightPv >= pkg.pv) {
+            const remLeft = box.leftPv - pkg.pv;
+            const remRight = box.rightPv - pkg.pv;
+
+            if (remLeft >= remRight) {
+              box.leftPv = remLeft;
+              box.rightPv = 0;
+            } else {
+              box.rightPv = remRight;
+              box.leftPv = 0;
+            }
+
+            box.pairsCompleted += 1;
+            box.totalPairsMatched += 1;
+            totalPairsAcrossAllBoards += 1;
+
+            const cyclePos = ((box.pairsCompleted - 1) % 8) + 1;
+            const pairGross = pkg.pairIncome;
+
+            if (cyclePos <= 4) {
+              const adminFee = Math.round(pairGross * 0.10);
+              const tdsRate = m.hasPan ? 5 : 20;
+              const tdsFee = Math.round(pairGross * (tdsRate / 100));
+              const netCash = Math.max(0, pairGross - adminFee - tdsFee);
+
+              box.cashEarned += netCash;
+              m.cashWallet += netCash;
+              m.totalTdsDeposited += tdsFee;
+
+              totalSessionNetCash += netCash;
+              totalSessionAdminCharge += adminFee;
+              totalSessionTds += tdsFee;
+
+              if (tdsFee > 0) {
+                state.tdsEntries.unshift({
+                  id: "TDS-" + Math.floor(1000 + Math.random() * 9000),
+                  month: "November 2026",
+                  memberId: m.id,
+                  memberName: m.name,
+                  boardLevel: lvl,
+                  pan: m.hasPan ? m.pan : "",
+                  hasPan: m.hasPan,
+                  grossPayout: pairGross,
+                  adminCharge: adminFee,
+                  tdsRate: tdsRate,
+                  tdsAmount: tdsFee,
+                  netPayable: netCash,
+                  deposited: false
+                });
+              }
+            } else {
+              box.upgradePvAccumulated += pairGross;
+              m.upgradeWalletPv += pairGross;
+
+              while (m.activePackageLevel < PACKAGES.length) {
+                const nextPkg = PACKAGES[m.activePackageLevel];
+                if (!nextPkg || m.upgradeWalletPv < nextPkg.amount) break;
+                m.upgradeWalletPv -= nextPkg.amount;
+                m.activePackageLevel += 1;
+                for (let bIdx = 1; bIdx <= m.activePackageLevel; bIdx++) {
+                  if (m.boxes[bIdx]) m.boxes[bIdx].unlocked = true;
+                }
+                upgradeEvents.push({
+                  memberId: m.id,
+                  newBoardLevel: m.activePackageLevel,
+                  newBoardPv: nextPkg.pv
+                });
+              }
+            }
+          }
+        }
+
+        recalculateMemberTotalPv(m);
+      });
+
+      upgradeEvents.forEach(ev => {
+        propagateBoardPvUpward(ev.memberId, ev.newBoardLevel, ev.newBoardPv, false);
+      });
+
+      state.members.forEach(m => recalculateMemberTotalPv(m));
+
+      if (totalSessionTds > 0 && state.taxDeposits[0]) {
+        state.taxDeposits[0].amount += totalSessionTds;
+        state.taxDeposits[0].status = "Pending Deposit";
+      }
+
+      state.totalMemberCashPayouts += totalSessionNetCash;
+      state.adminNetProfitBalance += totalSessionAdminCharge;
+
+      state.closedSessionsCount += 1;
+      state.currentSessionIdx = (state.currentSessionIdx + 1) % SESSIONS.length;
+      saveState();
+      render();
+      alert(
+        `${closedSession.label} Closed!\n` +
+        `Total Pairs Matched Across All 11 Boards: ${totalPairsAcrossAllBoards}\n` +
+        `Member Net Cash Payout: ₹${totalSessionNetCash}\n` +
+        `Govt TDS Liability: ₹${totalSessionTds}\n` +
+        `Admin Charge Profit: ₹${totalSessionAdminCharge}\n` +
+        `New Boards Unlocked: ${upgradeEvents.length}`
+      );
+    }
+
+    function openJoiningDirectly() {
+      state.roleView = "member";
+      state.memberTab = "join";
+      saveState();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function openJoiningForLeg(sponsorId, legSide) {
+      const sponsor = getMemberById(sponsorId) || state.members[0];
+      state.activeMemberId = sponsor ? sponsor.id : sponsorId;
+      state.roleView = "member";
+      state.memberTab = "join";
+      state.selectedJoinLeg = legSide === "RIGHT" ? "RIGHT" : "LEFT";
+      saveState();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function renderEightSessionTimeline() {
+      return `
+        <div class="pt-1">
+          <div class="flex items-center justify-between text-[10px] text-indigo-200 mb-1.5">
+            <span class="font-bold uppercase tracking-wider text-amber-300">8-Session Live Timeline</span>
+            <span>Active: <b class="text-white">${SESSIONS[state.currentSessionIdx].short}</b> • Closed: <b class="text-emerald-300">${state.closedSessionsCount}</b></span>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5">
+            ${SESSIONS.map((s, idx) => {
+              const isCurrent = idx === state.currentSessionIdx;
+              const isPast = idx < state.currentSessionIdx;
+              return `
+                <div class="rounded-lg px-2 py-1.5 border text-left transition ${
+                  isCurrent
+                    ? 'bg-emerald-500/20 border-emerald-400 text-white shadow'
+                    : isPast
+                    ? 'bg-slate-900/80 border-slate-700/70 text-slate-400'
+                    : 'bg-slate-950/70 border-indigo-800/60 text-indigo-200'
+                }">
+                  <div class="flex items-center justify-between text-[10px] font-extrabold">
+                    <span>${s.short}</span>
+                    <span class="text-[9px] px-1 rounded ${
+                      isCurrent
+                        ? 'bg-emerald-400 text-slate-950'
+                        : isPast
+                        ? 'bg-slate-800 text-slate-400'
+                        : 'bg-indigo-900/90 text-indigo-300'
+                    }">${isCurrent ? 'LIVE' : isPast ? 'DONE' : 'NEXT'}</span>
+                  </div>
+                  <div class="text-[9px] leading-tight mt-0.5 truncate">${escapeHtml(s.time)}</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function render() {
+      const root = document.getElementById("app");
+      const currentSession = SESSIONS[state.currentSessionIdx];
+      const newsList = state.newsItems.length > 0
+        ? state.newsItems.map(n => "• " + n.text)
+        : ["• GLOBAL SMPL • RD ENTERPRISES: 190 PV Base 11-Boards Plan (1 PV = ₹1)"];
+      const singleStreamHtml = newsList.map(t => `<span class="mx-4">${escapeHtml(t)}</span>`).join("");
+      const pendingUtrCount = state.members.filter(m => m.status === "PENDING").length;
+      const pendingPayoutMembersCount = state.members.filter(m => m.cashWallet > 0).length;
+      const totalAdminBadge = pendingUtrCount + pendingPayoutMembersCount;
+      const canCloseSession = state.roleView === "admin" && state.adminLoggedIn;
+
+      root.innerHTML = `
+        <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 sticky top-0 z-30">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold tracking-wider text-amber-400 uppercase">GLOBAL SMPL • RD ENTERPRISES</div>
+              <div class="text-sm font-semibold text-white">190 PV 11-Boards Plan (1 PV = ₹1)</div>
+            </div>
+            <div class="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
+              <button type="button" onclick="switchRole('member')" class="px-3 py-1.5 text-xs font-bold rounded-md transition ${state.roleView === 'member' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">Member</button>
+              <button type="button" onclick="switchRole('admin')" class="relative px-3 py-1.5 text-xs font-bold rounded-md transition ${state.roleView === 'admin' ? 'bg-amber-400 text-slate-950' : 'text-slate-300'}">
+                Admin
+                ${totalAdminBadge > 0 ? `<span class="ml-1 bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full">${totalAdminBadge}</span>` : ""}
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-2 bg-slate-950 border border-amber-500/40 rounded-md px-2 py-1.5 overflow-hidden relative">
+            <div class="ticker-track text-xs text-amber-300 font-medium items-center">
+              <div class="flex items-center shrink-0">${singleStreamHtml}</div>
+              <div class="flex items-center shrink-0" aria-hidden="true">${singleStreamHtml}</div>
+            </div>
+          </div>
+        </header>
+
+        <div class="bg-indigo-950/80 border-b border-indigo-800/70 px-4 py-2.5 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-[11px] text-indigo-300 font-medium">8 Daily Sessions • Closed: ${state.closedSessionsCount} • <span class="text-emerald-300">Firebase Live</span></div>
+              <div class="text-xs font-bold text-white">${currentSession.label}</div>
+            </div>
+            ${canCloseSession ? `
+              <button type="button" onclick="closeCurrentSessionManual()" class="bg-indigo-500 hover:bg-indigo-400 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-lg shadow shrink-0">
+                Close Session Now
+              </button>
+            ` : ""}
+          </div>
+
+          ${renderEightSessionTimeline()}
+
+          <button type="button" onclick="openJoiningDirectly()" class="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-xs py-2.5 rounded-xl shadow flex items-center justify-center gap-1.5">
+            <span>+ New Joining Form (190 PV to 2,86,720 PV • Payment Options • UTR)</span>
+          </button>
+        </div>
+
+        <main class="p-4 space-y-4">
+          ${state.roleView === "member" ? renderMemberView() : renderAdminView()}
+        </main>
+
+        ${state.roleView === "member" ? renderMemberBottomNav() : renderAdminBottomNav()}
+      `;
+    }
+
+    function renderAdminLogoutButton() {
+      return `
+        <button type="button" onclick="logoutAdmin()" class="text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded-lg shrink-0">
+          Admin Logout
+        </button>
+      `;
+    }
+
+    function renderMemberView() {
+      const defaultSponsor = getMemberById(state.activeMemberId) || state.members[0];
+
+      if (state.memberTab === "join") {
+        return renderJoiningForm(defaultSponsor);
+      }
+
+      if (!state.memberLoggedIn) {
+        return `
+          <div class="bg-slate-800/95 border border-emerald-500/40 rounded-2xl p-5 space-y-4">
+            <div class="bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3">
+              <div class="text-xs font-bold uppercase tracking-wider text-emerald-300">Welcome to GLOBAL SMPL</div>
+              <div class="text-base font-extrabold text-white mt-0.5">Member ID Verification</div>
+              <p class="text-xs text-slate-300 mt-1">Apni ID verify karne ke liye Member ID aur Password darj karein.</p>
+            </div>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">Member ID *</label>
+                <input id="memLoginId" type="text" placeholder="e.g. SMPL1001" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white uppercase" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">Password *</label>
+                <div class="relative">
+                  <input id="memLoginPass" type="password" value="" placeholder="Enter Password" class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-11 py-2.5 text-sm text-white" />
+                  <button type="button" onclick="togglePasswordVisibility('memLoginPass', this)" aria-label="Show or Hide Password" class="absolute inset-y-0 right-0 px-3 flex items-center text-slate-300 hover:text-amber-300 text-base">👁</button>
+                </div>
+              </div>
+              <button type="button" onclick="handleMemberLogin()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-sm">Verify ID & Open Welcome</button>
+            </div>
+          </div>
+        `;
+      }
+
+      const member = ensureMemberBoardSchema(defaultSponsor);
+      const activePkg = PACKAGES[member.activePackageLevel - 1] || PACKAGES[0];
+      const nextPkg = PACKAGES[member.activePackageLevel] || null;
+      const tdsRate = member.hasPan ? 5 : 20;
+      const myPayouts = state.payoutRecords.filter(p => p.memberId === member.id);
+
+      const createdBanner = state.lastCreatedCredentials ? `
+        <div class="bg-amber-950 border-2 border-amber-400 rounded-xl p-3.5 text-xs space-y-1.5">
+          <div class="font-bold text-amber-300 text-sm">Joining Submitted! Pending Admin UTR Verification</div>
+          <div class="text-slate-200">Name: <b>${escapeHtml(state.lastCreatedCredentials.name)}</b> (${state.lastCreatedCredentials.placement} LEG) | Mode: <b>${escapeHtml(state.lastCreatedCredentials.paymentMode || "UPI")}</b> | UTR: <span class="font-mono text-white">${escapeHtml(state.lastCreatedCredentials.utr)}</span></div>
+          <div class="font-mono text-emerald-300 text-sm font-bold">User ID: ${state.lastCreatedCredentials.id} | Password: ${state.lastCreatedCredentials.password}</div>
+          <div class="flex gap-2 pt-1.5">
+            <button type="button" onclick="switchRole('admin')" class="bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg">Verify UTR in Admin →</button>
+            <button type="button" onclick="clearCreatedBanner()" class="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg">Dismiss</button>
+          </div>
+        </div>
+      ` : "";
+
+      if (state.memberTab === "packages") return createdBanner + renderElevenPackageBoxes(member);
+      if (state.memberTab === "tree") return createdBanner + renderBinaryTreeView(member);
+      if (state.memberTab === "tax") return createdBanner + renderMemberTaxAndBill(member, tdsRate);
+      if (state.memberTab === "profile") return createdBanner + renderMemberProfile(member);
+
+      return `
+        ${createdBanner}
+
+        <div class="bg-slate-800/90 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-2">
+          <div>
+            <div class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Welcome, ${escapeHtml(member.name)}</div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-xs font-mono text-amber-300 font-bold">ID: ${member.id}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${member.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' : member.status === 'FAKE' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}">${member.status}</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-0.5">Mobile: ${escapeHtml(member.mobile)} • Sponsor: ${escapeHtml(member.sponsorId)} (${escapeHtml(member.placement)})</div>
+            <div class="text-[11px] text-slate-400">Active Up To: Board #${activePkg.level} — ${activePkg.name} (${activePkg.pv.toLocaleString("en-IN")} PV)</div>
+          </div>
+          <button type="button" onclick="logoutMember()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg shrink-0">Logout</button>
+        </div>
+
+        ${renderReferralShareCard(member)}
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-800 border border-emerald-500/30 rounded-xl p-3.5">
+            <div class="text-[11px] text-slate-400">Available Cash Wallet (Due)</div>
+            <div class="text-xl font-extrabold text-emerald-400 mt-1">₹${member.cashWallet.toLocaleString("en-IN")}</div>
+            <div class="text-[10px] text-slate-300 mt-1">Bank Paid Out: <b class="text-sky-300">₹${(member.totalCashPaidOut || 0).toLocaleString("en-IN")}</b></div>
+          </div>
+          <div class="bg-slate-800 border border-amber-500/40 rounded-xl p-3.5">
+            <div class="text-[11px] text-slate-400">Activation Box (Cutoff Pairs 5-8)</div>
+            <div class="text-xl font-extrabold text-amber-300 mt-0.5">₹${member.upgradeWalletPv.toLocaleString("en-IN")}</div>
+            ${nextPkg ? (() => {
+              const remNeed = Math.max(0, nextPkg.amount - member.upgradeWalletPv);
+              const pct = Math.min(100, Math.round((member.upgradeWalletPv / nextPkg.amount) * 100));
+              return `
+                <div class="text-[10px] text-slate-300 mt-1 leading-tight">
+                  Next: <b class="text-white">Board #${nextPkg.level}</b> (₹${nextPkg.amount.toLocaleString("en-IN")})
+                </div>
+                <div class="text-[10px] font-bold text-rose-300 mt-0.5">
+                  Need: ₹${remNeed.toLocaleString("en-IN")} aur chahiye
+                </div>
+                <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-1.5">
+                  <div class="bg-amber-400 h-full" style="width:${pct}%"></div>
+                </div>
+              `;
+            })() : `<div class="text-[10px] text-emerald-400 font-bold mt-1">All 11 Boards Running!</div>`}
+          </div>
+          <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5">
+            <div class="text-[11px] text-slate-400">Carry-Forward Left PV</div>
+            <div class="text-lg font-bold text-sky-400 mt-0.5">${member.leftPv.toLocaleString("en-IN")} PV</div>
+          </div>
+          <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5">
+            <div class="text-[11px] text-slate-400">Carry-Forward Right PV</div>
+            <div class="text-lg font-bold text-purple-400 mt-0.5">${member.rightPv.toLocaleString("en-IN")} PV</div>
+          </div>
+        </div>
+
+        ${myPayouts.length > 0 ? `
+          <div class="bg-slate-800/90 border border-sky-500/40 rounded-2xl p-4 space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-sky-300">Received Payout Receipts (${myPayouts.length})</h3>
+              <span class="text-[11px] text-emerald-400 font-bold">Total Paid: ₹${(member.totalCashPaidOut || 0).toLocaleString("en-IN")}</span>
+            </div>
+            ${myPayouts.slice(0, 5).map(p => `
+              <div class="bg-slate-900 border border-slate-700 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                <div>
+                  <div class="font-bold text-emerald-300">₹${p.amount.toLocaleString("en-IN")} • ${escapeHtml(p.mode)}</div>
+                  <div class="text-[10px] text-slate-400">Ref/UTR: <span class="font-mono text-white">${escapeHtml(p.refNo)}</span> • ${escapeHtml(p.paidAt)}</div>
+                </div>
+                <span class="bg-emerald-500/20 text-emerald-300 font-bold text-[10px] px-2 py-0.5 rounded-full">PAID</span>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+
+        <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-bold text-white">All 11 Boards Simultaneous Payout Status</h3>
+              <p class="text-[11px] text-slate-400">Har unlocked board ek saath alag-alag pair payout generate karta hai.</p>
+            </div>
+            <button type="button" onclick="setMemberTab('packages')" class="text-xs text-emerald-400 font-semibold shrink-0">Full 11 Boards →</button>
+          </div>
+          <div class="grid grid-cols-1 gap-2">
+            ${PACKAGES.map(pkg => {
+              const b = member.boxes[pkg.level] || { unlocked: false, leftPv: 0, rightPv: 0, pairsCompleted: 0, cashEarned: 0 };
+              return `
+                <div class="p-2.5 rounded-xl border ${b.unlocked ? 'bg-slate-900 border-emerald-500/50' : 'bg-slate-950/60 border-slate-800 opacity-70'}">
+                  <div class="flex items-center justify-between text-xs font-bold">
+                    <span class="text-white">Board #${pkg.level}: ${pkg.pv.toLocaleString("en-IN")} PV • Pair: ₹${pkg.pairIncome.toLocaleString("en-IN")}</span>
+                    <span class="${b.unlocked ? 'text-emerald-400' : 'text-slate-500'} text-[10px]">${b.unlocked ? 'RUNNING' : 'LOCKED'}</span>
+                  </div>
+                  <div class="grid grid-cols-4 gap-1 mt-1 text-[10px]">
+                    <div class="text-sky-300">L: <b>${b.leftPv}</b></div>
+                    <div class="text-purple-300">R: <b>${b.rightPv}</b></div>
+                    <div class="text-amber-300">Cycle: <b>${(b.pairsCompleted % 8)}/8</b></div>
+                    <div class="text-emerald-300 text-right">Earned: <b>₹${b.cashEarned}</b></div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+
+        <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-white">YouTube Training & Channel Links</h3>
+            <span class="text-[11px] text-slate-400">${state.youtubeLinks.length}/5 Links</span>
+          </div>
+          ${state.youtubeLinks.map((yt, idx) => `
+            <div class="flex items-center justify-between bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2.5 gap-2">
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-white truncate">${idx + 1}. ${escapeHtml(yt.title)}</div>
+                <div class="text-[11px] text-slate-400 truncate">${escapeHtml(yt.url)}</div>
+              </div>
+              <a href="${escapeAttr(yt.url)}" target="_blank" rel="noopener noreferrer" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shrink-0">Watch</a>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderJoiningForm(defaultSponsor) {
+      const sponsorValue = defaultSponsor ? defaultSponsor.id : (state.activeMemberId || "SMPL1001");
+      const selectedPkg = PACKAGES[state.selectedJoinPkgLevel - 1] || PACKAGES[0];
+      const upiDeepLink = `upi://pay?pa=${encodeURIComponent(state.adminPaymentDetails.upiId)}&pn=${encodeURIComponent(state.adminPaymentDetails.accountHolder)}&am=${selectedPkg.amount}&cu=INR&tn=${encodeURIComponent("Board-" + selectedPkg.level + "-Joining")}`;
+      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiDeepLink)}`;
+
+      return `
+        <form onsubmit="handleNewJoining(event)" class="bg-slate-800 border-2 border-emerald-500/50 rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-bold text-emerald-300">New Member Joining Form</h2>
+              <p class="text-xs text-slate-400">190 PV Base • 1 PV = ₹1 • UTR Verification Required</p>
+            </div>
+            <button type="button" onclick="setMemberTab('dashboard')" class="bg-slate-700 text-slate-200 text-xs px-2.5 py-1 rounded-lg">Back</button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Sponsor ID *</label>
+              <input name="sponsorId" type="text" value="${escapeAttr(sponsorValue)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Placement Leg *</label>
+              <select name="placement" required class="w-full bg-slate-900 border border-emerald-500 rounded-xl px-3 py-2 text-xs font-bold text-emerald-300">
+                <option value="LEFT" ${state.selectedJoinLeg !== 'RIGHT' ? 'selected' : ''}>LEFT LEG</option>
+                <option value="RIGHT" ${state.selectedJoinLeg === 'RIGHT' ? 'selected' : ''}>RIGHT LEG</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3 space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-amber-300 mb-1">Select Package Board (190 PV to 2,86,720 PV) *</label>
+              <select name="pkgLevel" onchange="updateJoinPackagePreview(this.value)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                ${PACKAGES.map(p => `<option value="${p.level}" ${p.level === state.selectedJoinPkgLevel ? "selected" : ""}>Board #${p.level}: ${p.name} — ${p.pv.toLocaleString("en-IN")} PV (₹${p.amount.toLocaleString("en-IN")})</option>`).join("")}
+              </select>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-bold text-sky-300">Choose Payment Option *</label>
+              <div class="grid grid-cols-3 gap-1.5 text-xs">
+                ${["UPI", "QR_SCAN", "BANK_TRANSFER"].map(mode => {
+                  const labels = { UPI: "UPI App / ID", QR_SCAN: "Scan QR Code", BANK_TRANSFER: "Bank IMPS/NEFT" };
+                  const active = state.selectedPaymentMode === mode;
+                  return `
+                    <button type="button" onclick="setPaymentMode('${mode}')" class="py-2 px-2 rounded-lg font-bold border text-[11px] transition ${active ? 'bg-sky-500 text-slate-950 border-sky-300' : 'bg-slate-950 text-slate-300 border-slate-700'}">
+                      ${labels[mode]}
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+              <input type="hidden" name="paymentMode" value="${state.selectedPaymentMode}" />
+            </div>
+
+            <div class="bg-slate-950/95 border border-sky-500/40 rounded-xl p-3 space-y-2.5 text-xs">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-amber-300 uppercase tracking-wide">ADMIN BANK & UPI (EASY COPY)</span>
+                <span class="text-[11px] text-emerald-400 font-bold">Pay ₹${selectedPkg.amount.toLocaleString("en-IN")}</span>
+              </div>
+
+              ${state.selectedPaymentMode === "QR_SCAN" ? `
+                <div class="flex flex-col items-center bg-white rounded-xl p-3 text-slate-900 space-y-1.5">
+                  <img src="${qrImgUrl}" alt="UPI Payment QR" class="w-36 h-36 rounded-md border border-slate-300" />
+                  <div class="text-[11px] font-bold">Scan with PhonePe / GPay / Paytm</div>
+                  <div class="text-[11px] font-mono text-indigo-700 font-bold">${escapeHtml(state.adminPaymentDetails.upiId)} • ₹${selectedPkg.amount.toLocaleString("en-IN")}</div>
+                </div>
+              ` : ""}
+
+              <div class="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 gap-2">
+                <div class="min-w-0">
+                  <div class="text-[10px] text-slate-400">Bank A/C (${escapeHtml(state.adminPaymentDetails.bankName)})</div>
+                  <div class="font-mono font-extrabold text-sm text-white select-all">${escapeHtml(state.adminPaymentDetails.accountNumber)}</div>
+                  <div class="text-[10px] text-slate-400 truncate">${escapeHtml(state.adminPaymentDetails.accountHolder)}</div>
+                </div>
+                <button type="button" onclick="copyFieldWithFeedback(this, 'adminAccountNumber', 'Bank A/C')" class="bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shrink-0">Copy</button>
+              </div>
+
+              <div class="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 gap-2">
+                <div class="min-w-0">
+                  <div class="text-[10px] text-slate-400">IFSC Code</div>
+                  <div class="font-mono font-extrabold text-sm text-amber-300 select-all">${escapeHtml(state.adminPaymentDetails.ifscCode)}</div>
+                </div>
+                <button type="button" onclick="copyFieldWithFeedback(this, 'adminIfscCode', 'IFSC Code')" class="bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shrink-0">Copy</button>
+              </div>
+
+              <div class="flex items-center justify-between bg-emerald-950/60 border border-emerald-500/50 rounded-xl px-3 py-2.5 gap-2">
+                <div class="min-w-0">
+                  <div class="text-[10px] text-emerald-300">UPI ID</div>
+                  <div class="font-mono font-extrabold text-sm text-white break-all select-all">${escapeHtml(state.adminPaymentDetails.upiId)}</div>
+                </div>
+                <div class="flex gap-1.5 shrink-0">
+                  <a href="${escapeAttr(upiDeepLink)}" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs px-2.5 py-2 rounded-xl">Pay</a>
+                  <button type="button" onclick="copyFieldWithFeedback(this, 'adminUpiId', 'UPI ID')" class="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-xs px-3 py-2 rounded-xl">Copy UPI</button>
+                </div>
+              </div>
+
+              <div class="text-[11px] text-slate-400 italic">${escapeHtml(state.adminPaymentDetails.qrNote || "")}</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">Paid Amount (₹) *</label>
+                <input id="joinAmountInput" name="joiningAmount" type="number" value="${selectedPkg.amount}" required class="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs font-bold text-emerald-300" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">Transaction / UTR No. *</label>
+                <input name="utrNumber" type="text" placeholder="12-digit UTR / Ref ID" required class="w-full bg-slate-950 border border-amber-400/50 rounded-xl px-3 py-2 text-xs font-mono text-amber-200 uppercase" />
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Full Name *</label>
+              <input name="name" type="text" placeholder="Member full name" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Mobile Number *</label>
+              <input name="mobile" type="tel" placeholder="10-digit mobile" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Member Age *</label>
+            <input name="age" type="number" min="18" max="99" value="30" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+          </div>
+
+          <div class="border-t border-slate-700 pt-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-amber-300">Member Payout Bank & UPI (Optional — Later Editable)</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input name="bankName" type="text" placeholder="Bank Name (e.g. SBI)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              <input name="ifscCode" type="text" placeholder="IFSC Code" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 uppercase" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input name="accountNumber" type="text" placeholder="Bank Account Number" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white" />
+              <input name="upiId" type="text" placeholder="UPI ID (e.g. name@ybl)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-emerald-300" />
+            </div>
+          </div>
+
+          <div class="border-t border-slate-700 pt-3 space-y-2">
+            <div class="text-xs font-bold text-amber-300">Full Address</div>
+            <input name="village" type="text" placeholder="Village / Locality / House No." required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            <div class="grid grid-cols-2 gap-2">
+              <input name="postBlock" type="text" placeholder="Post / Block" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              <input name="district" type="text" placeholder="District" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input name="state" type="text" value="Odisha" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              <input name="pin" type="text" placeholder="PIN Code" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            </div>
+          </div>
+
+          <div class="border-t border-slate-700 pt-3 space-y-2">
+            <div class="text-xs font-bold text-sky-300">PAN & Tax Slab</div>
+            <div class="grid grid-cols-2 gap-2">
+              <input name="pan" type="text" placeholder="PAN (e.g. ABCDE1234F)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white uppercase" />
+              <select name="hasPan" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                <option value="true">PAN Verified (5% TDS)</option>
+                <option value="false">Without PAN (20% TDS)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="border-t border-slate-700 pt-3 space-y-2">
+            <div class="text-xs font-bold text-emerald-300">Nominee Details</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] text-slate-300 mb-1">Nominee Name *</label>
+                <input name="nomineeName" type="text" placeholder="Nominee Name" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div>
+                <label class="block text-[11px] text-emerald-300 font-semibold mb-1">Relationship *</label>
+                <select name="nomineeRelation" required class="w-full bg-slate-900 border border-emerald-500/60 rounded-xl px-3 py-2 text-xs text-white font-medium">
+                  <option value="Spouse">Spouse</option>
+                  <option value="Father">Father</option>
+                  <option value="Mother">Mother</option>
+                  <option value="Son">Son</option>
+                  <option value="Daughter">Daughter</option>
+                  <option value="Brother">Brother</option>
+                  <option value="Sister">Sister</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] text-slate-300 mb-1">Nominee Age *</label>
+                <input name="nomineeAge" type="number" min="1" max="100" placeholder="Age" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-300 mb-1">Nominee Mobile</label>
+                <input name="nomineeContact" type="tel" placeholder="Mobile" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-3 rounded-xl text-sm shadow-lg">
+            Submit Joining & UTR
+          </button>
+        </form>
+      `;
+    }
+
+    function renderElevenPackageBoxes(member) {
+      ensureMemberBoardSchema(member);
+      const nextPkg = PACKAGES[member.activePackageLevel] || null;
+
+      return `
+        <div class="space-y-3">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2">
+            <h2 class="text-base font-bold text-white">190 PV Base — All 11 Boards Parallel Payout Engine</h2>
+            <p class="text-xs text-slate-300">
+              Sabhi unlocked boards ek saath chalte hain aur matching kabhi band nahi hoti. Cutoff matching income (pairs 5–8) ek hi activation box mein jama hoti hai.
+            </p>
+            ${nextPkg ? (() => {
+              const remNeed = Math.max(0, nextPkg.amount - member.upgradeWalletPv);
+              const pct = Math.min(100, Math.round((member.upgradeWalletPv / nextPkg.amount) * 100));
+              return `
+                <div class="bg-amber-950/60 border border-amber-400/50 rounded-xl p-3 space-y-1.5 text-xs">
+                  <div class="flex items-center justify-between font-bold">
+                    <span class="text-amber-300">Next Unlock: Board #${nextPkg.level} (₹${nextPkg.amount.toLocaleString("en-IN")})</span>
+                    <span class="text-white">${pct}%</span>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span class="text-emerald-300">Activation Box: <b>₹${member.upgradeWalletPv.toLocaleString("en-IN")}</b></span>
+                    <span class="text-rose-300 font-bold">Need: ₹${remNeed.toLocaleString("en-IN")} aur chahiye</span>
+                  </div>
+                  <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                    <div class="bg-amber-400 h-full" style="width:${pct}%"></div>
+                  </div>
+                </div>
+              `;
+            })() : `<div class="text-xs font-bold text-emerald-400">All 11 Boards Unlocked & Generating Payouts Simultaneously!</div>`}
+          </div>
+
+          ${PACKAGES.map(pkg => {
+            const box = member.boxes[pkg.level] || { unlocked: false, leftPv: 0, rightPv: 0, pairsCompleted: 0, cashEarned: 0, upgradePvAccumulated: 0 };
+            const isUnlocked = box.unlocked || pkg.level <= member.activePackageLevel;
+            const cyclePairs = box.pairsCompleted % 8;
+
+            return `
+              <div class="rounded-2xl p-4 border ${isUnlocked ? 'bg-slate-800 border-emerald-500/50' : 'bg-slate-900/70 border-slate-800 opacity-75'}">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="text-xs font-bold uppercase ${isUnlocked ? 'text-emerald-400' : 'text-slate-400'}">Board #${pkg.level}</span>
+                    <div class="text-sm font-bold text-white">${escapeHtml(pkg.name)} — ${pkg.pv.toLocaleString("en-IN")} PV (₹${pkg.amount.toLocaleString("en-IN")})</div>
+                  </div>
+                  <span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${isUnlocked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}">
+                    ${isUnlocked ? 'RUNNING' : 'LOCKED'}
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-2.5 text-xs bg-slate-900/90 rounded-xl px-3 py-2 border border-slate-700/70">
+                  <div>Board Left PV: <b class="text-sky-400">${box.leftPv.toLocaleString("en-IN")} PV</b></div>
+                  <div class="text-right">Board Right PV: <b class="text-purple-400">${box.rightPv.toLocaleString("en-IN")} PV</b></div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 mt-2 text-center bg-slate-950/70 rounded-xl p-2.5">
+                  <div>
+                    <div class="text-[10px] text-slate-400">Pair Payout (72%)</div>
+                    <div class="text-xs font-bold text-emerald-300">₹${pkg.pairIncome.toLocaleString("en-IN")}</div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] text-slate-400">4+4 Cycle</div>
+                    <div class="text-xs font-bold text-amber-300">${cyclePairs} / 8 Pairs</div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] text-slate-400">Board Cash Earned</div>
+                    <div class="text-xs font-bold text-white">₹${box.cashEarned.toLocaleString("en-IN")}</div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function renderBinaryTreeView(member) {
+      const leftTeam = collectLegMembers(member.leftChildId);
+      const rightTeam = collectLegMembers(member.rightChildId);
+      const leftWa = buildWhatsappReferralUrl(member.id, member.name, "LEFT");
+      const rightWa = buildWhatsappReferralUrl(member.id, member.name, "RIGHT");
+
+      const renderTeamList = (items, accentClass) => {
+        if (items.length === 0) {
+          return `<div class="text-[11px] text-slate-500 italic py-2">Is side mein abhi koi member nahi hai.</div>`;
+        }
+        return items.map(({ member: sub, depth }) => {
+          const pkg = PACKAGES[sub.activePackageLevel - 1] || PACKAGES[0];
+          return `
+            <div class="bg-slate-800/95 border ${accentClass} rounded-lg p-2 text-[11px] space-y-0.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-white truncate">${escapeHtml(sub.name)}</span>
+                <span class="text-[10px] font-mono text-amber-300 shrink-0">${sub.id}</span>
+              </div>
+              <div class="flex items-center justify-between text-[10px] text-slate-300">
+                <span>Board #${sub.activePackageLevel} (${pkg.pv} PV)</span>
+                <span class="text-emerald-300 font-semibold">L${depth} • ${escapeHtml(sub.placement)}</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+      };
+
+      return `
+        <div class="space-y-4">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-4">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h2 class="text-base font-bold text-white">Left & Right Complete Members List</h2>
+                <p class="text-xs text-slate-400">Left side aur Right side ke sabhi members ki poori list.</p>
+              </div>
+              <button type="button" onclick="openJoiningDirectly()" class="bg-emerald-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shrink-0">+ Joining</button>
+            </div>
+
+            <div class="bg-slate-900 border-2 border-emerald-500 rounded-xl p-3 text-center">
+              <div class="text-xs font-mono text-amber-300">${member.id}</div>
+              <div class="text-sm font-bold text-white">${escapeHtml(member.name)}</div>
+              <div class="text-[11px] text-emerald-400 mt-0.5">Running Boards: #1 to #${member.activePackageLevel} • Left: ${leftTeam.length} | Right: ${rightTeam.length}</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 items-start">
+              <div class="bg-slate-900/90 border border-sky-500/40 rounded-xl p-2.5 space-y-2">
+                <div class="border-b border-sky-500/20 pb-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-sky-400 uppercase">◀ Left Side</span>
+                    <span class="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${leftTeam.length}</span>
+                  </div>
+                  <div class="text-xs font-bold text-white mt-0.5">Left PV: ${member.leftPv.toLocaleString("en-IN")}</div>
+                </div>
+                <div class="space-y-1.5 max-h-80 overflow-y-auto pr-0.5">
+                  ${renderTeamList(leftTeam, "border-sky-500/30")}
+                </div>
+                <a href="${escapeAttr(leftWa)}" target="_blank" rel="noopener noreferrer" class="block text-center w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[10px] py-1.5 rounded-lg">
+                  WhatsApp Left Link
+                </a>
+                <button type="button" onclick="openJoiningForLeg('${member.id}', 'LEFT')" class="w-full bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold text-[10px] py-1.5 rounded-lg">
+                  + Add Left Joining
+                </button>
+              </div>
+
+              <div class="bg-slate-900/90 border border-purple-500/40 rounded-xl p-2.5 space-y-2">
+                <div class="border-b border-purple-500/20 pb-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-purple-400 uppercase">Right Side ▶</span>
+                    <span class="text-[10px] font-bold bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">${rightTeam.length}</span>
+                  </div>
+                  <div class="text-xs font-bold text-white mt-0.5">Right PV: ${member.rightPv.toLocaleString("en-IN")}</div>
+                </div>
+                <div class="space-y-1.5 max-h-80 overflow-y-auto pr-0.5">
+                  ${renderTeamList(rightTeam, "border-purple-500/30")}
+                </div>
+                <a href="${escapeAttr(rightWa)}" target="_blank" rel="noopener noreferrer" class="block text-center w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[10px] py-1.5 rounded-lg">
+                  WhatsApp Right Link
+                </a>
+                <button type="button" onclick="openJoiningForLeg('${member.id}', 'RIGHT')" class="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 font-bold text-[10px] py-1.5 rounded-lg">
+                  + Add Right Joining
+                </button>
+              </div>
+            </div>
+          </div>
+
+          ${renderReferralShareCard(member)}
+        </div>
+      `;
+    }
+
+    function renderMemberTaxAndBill(member, tdsRate) {
+      const myTdsRows = state.tdsEntries.filter(t => t.memberId === member.id);
+      const myPayoutRows = state.payoutRecords.filter(p => p.memberId === member.id);
+      return `
+        <div class="space-y-4">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2">
+            <h2 class="text-base font-bold text-white">My PAN, Tax & Payout Ledger</h2>
+            <div class="flex items-center justify-between bg-slate-900 p-3 rounded-xl">
+              <div>
+                <div class="text-xs text-slate-400">Registered PAN (${tdsRate}% Slab)</div>
+                <div class="text-sm font-mono font-bold text-amber-300">${member.hasPan && member.pan ? escapeHtml(member.pan) : "Not Provided (Non-PAN)"}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs text-slate-400">Total PAN TDS Cut</div>
+                <div class="text-base font-extrabold text-rose-400">₹${member.totalTdsDeposited}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-800 border border-emerald-500/40 rounded-2xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-emerald-300">Admin Payout Receipts</h3>
+              <span class="text-xs font-bold text-white">Paid: ₹${(member.totalCashPaidOut || 0).toLocaleString("en-IN")} | Due: ₹${member.cashWallet.toLocaleString("en-IN")}</span>
+            </div>
+            ${myPayoutRows.length === 0
+              ? `<p class="text-xs text-slate-400">Abhi tak koi bank/UPI payout receipt nahi hai.</p>`
+              : myPayoutRows.map(p => `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs flex items-center justify-between gap-2">
+                  <div>
+                    <div class="font-bold text-white">₹${p.amount.toLocaleString("en-IN")} via ${escapeHtml(p.mode)}</div>
+                    <div class="text-slate-400">Ref/UTR: <span class="font-mono text-amber-300">${escapeHtml(p.refNo)}</span> • ${escapeHtml(p.paidAt)}</div>
+                    ${p.note ? `<div class="text-[11px] text-slate-400">${escapeHtml(p.note)}</div>` : ""}
+                  </div>
+                  <span class="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300">PAID</span>
+                </div>
+              `).join("")
+            }
+          </div>
+
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2">
+            <h3 class="text-sm font-bold text-white">Board-Wise Payout & TDS History</h3>
+            ${myTdsRows.length === 0
+              ? `<p class="text-xs text-slate-400">Abhi tak koi session pair payout entry nahi hai.</p>`
+              : myTdsRows.map(row => `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs flex items-center justify-between">
+                  <div>
+                    <div class="font-bold text-white">Board #${row.boardLevel || 1} • Gross ₹${row.grossPayout} • Net ₹${row.netPayable}</div>
+                    <div class="text-slate-400">Admin (10%): ₹${row.adminCharge} | TDS (${row.tdsRate}%): <span class="text-rose-400 font-bold">₹${row.tdsAmount}</span></div>
+                  </div>
+                  <span class="px-2 py-1 rounded-md text-[10px] font-bold ${row.deposited ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                    ${row.deposited ? 'Deposited' : 'Pending'}
+                  </span>
+                </div>
+              `).join("")
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMemberProfile(member) {
+      ensureMemberBoardSchema(member);
+      const bd = member.bankDetails;
+      const hasBankOrUpi = Boolean((bd.accountNumber && bd.ifscCode) || bd.upiId);
+
+      return `
+        <div class="space-y-4">
+          ${renderReferralShareCard(member)}
+
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3 text-xs">
+            <div class="flex items-center justify-between">
+              <h2 class="text-base font-bold text-white">Welcome ${escapeHtml(member.name)} — ID Details</h2>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${hasBankOrUpi ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                ${hasBankOrUpi ? 'Payout Ready' : 'Bank/UPI Pending'}
+              </span>
+            </div>
+            <div class="space-y-1.5 text-slate-300">
+              <div><span class="text-slate-400">User ID:</span> <span class="font-mono text-amber-300 font-bold">${member.id}</span></div>
+              <div><span class="text-slate-400">Status:</span> <b class="text-white">${member.status}</b> | <span class="text-slate-400">Mode:</span> <b>${escapeHtml(member.paymentMode || "UPI")}</b> | <span class="text-slate-400">UTR:</span> <span class="font-mono text-emerald-300">${escapeHtml(member.utrNumber)}</span></div>
+              <div><span class="text-slate-400">Name & Age:</span> <span class="text-white font-semibold">${escapeHtml(member.name)}</span> (${member.age} yrs)</div>
+              <div><span class="text-slate-400">Mobile:</span> ${escapeHtml(member.mobile)}</div>
+              <div><span class="text-slate-400">Sponsor & Leg:</span> ${escapeHtml(member.sponsorId)} (${escapeHtml(member.placement)})</div>
+              <div><span class="text-slate-400">Address:</span> ${escapeHtml(member.address.village)}, ${escapeHtml(member.address.postBlock)}, ${escapeHtml(member.address.district)}, ${escapeHtml(member.address.state)} - ${escapeHtml(member.address.pin)}</div>
+            </div>
+
+            <div class="border-t border-slate-700 pt-3 space-y-1">
+              <div class="font-bold text-amber-300">Saved Payout Bank & UPI</div>
+              <div>Account Holder: <span class="text-white font-semibold">${escapeHtml(bd.accountHolder || member.name)}</span></div>
+              <div>Bank & A/C No.: <span class="text-white font-mono">${bd.bankName ? escapeHtml(bd.bankName) + " • " : ""}${bd.accountNumber ? escapeHtml(bd.accountNumber) : "Not Added"}</span></div>
+              <div>IFSC: <span class="text-amber-300 font-mono">${bd.ifscCode ? escapeHtml(bd.ifscCode) : "Not Added"}</span> | UPI: <span class="text-emerald-300 font-mono">${bd.upiId ? escapeHtml(bd.upiId) : "Not Added"}</span></div>
+            </div>
+
+            <div class="border-t border-slate-700 pt-3 space-y-1">
+              <div class="font-bold text-emerald-300">Nominee Details</div>
+              <div>Nominee Name: <span class="text-white font-semibold">${escapeHtml(member.nominee.name)}</span></div>
+              <div>Relationship: <span class="text-amber-300 font-bold">${escapeHtml(member.nominee.relation)}</span> | Age: ${member.nominee.age} yrs</div>
+              <div>Nominee Contact: ${escapeHtml(member.nominee.contact || "N/A")}</div>
+            </div>
+          </div>
+
+          <form onsubmit="handleMemberProfileEdit(event, '${member.id}')" class="bg-slate-800 border-2 border-emerald-500/40 rounded-2xl p-4 space-y-3 text-xs">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-emerald-300">Edit Profile, Bank Account, UPI & PAN</h3>
+                <p class="text-[11px] text-slate-400">Bank A/C ya UPI ID mein se koi bhi ek ya dono update karein.</p>
+              </div>
+            </div>
+
+            <div class="space-y-2 border-t border-slate-700 pt-2.5">
+              <div class="font-bold text-amber-300">Payout Bank & UPI Details</div>
+              <div>
+                <label class="block text-slate-300 mb-1">Account Holder Name *</label>
+                <input name="accountHolder" type="text" value="${escapeAttr(bd.accountHolder || member.name)}" placeholder="Name as per bank passbook" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Bank Name</label>
+                  <input name="bankName" type="text" value="${escapeAttr(bd.bankName)}" placeholder="e.g. SBI / PNB / HDFC" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">IFSC Code</label>
+                  <input name="ifscCode" type="text" value="${escapeAttr(bd.ifscCode)}" placeholder="e.g. SBIN0005762" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 uppercase" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">Bank Account Number</label>
+                <input name="accountNumber" type="text" value="${escapeAttr(bd.accountNumber)}" placeholder="Enter full account number" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white" />
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">UPI ID (PhonePe / GPay / Paytm)</label>
+                <input name="upiId" type="text" value="${escapeAttr(bd.upiId)}" placeholder="e.g. 9876543210@ybl" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-emerald-300" />
+              </div>
+            </div>
+
+            <div class="space-y-2 border-t border-slate-700 pt-2.5">
+              <div class="font-bold text-sky-300">Personal, PAN, Address & Nominee</div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Mobile Number *</label>
+                  <input name="mobile" type="tel" value="${escapeAttr(member.mobile)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Member Age *</label>
+                  <input name="age" type="number" min="18" max="99" value="${member.age}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">PAN Number</label>
+                  <input name="pan" type="text" value="${escapeAttr(member.pan)}" placeholder="ABCDE1234F" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white uppercase" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">TDS Slab</label>
+                  <select name="hasPan" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                    <option value="true" ${member.hasPan ? "selected" : ""}>PAN Verified (5% TDS)</option>
+                    <option value="false" ${!member.hasPan ? "selected" : ""}>No PAN (20% TDS)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">Village / Locality *</label>
+                <input name="village" type="text" value="${escapeAttr(member.address.village)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <input name="postBlock" type="text" value="${escapeAttr(member.address.postBlock)}" placeholder="Post / Block" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                <input name="district" type="text" value="${escapeAttr(member.address.district)}" placeholder="District" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <input name="state" type="text" value="${escapeAttr(member.address.state)}" placeholder="State" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                <input name="pin" type="text" value="${escapeAttr(member.address.pin)}" placeholder="PIN Code" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Name *</label>
+                  <input name="nomineeName" type="text" value="${escapeAttr(member.nominee.name)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Relation *</label>
+                  <select name="nomineeRelation" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                    ${["Spouse", "Father", "Mother", "Son", "Daughter", "Brother", "Sister", "Other"].map(rel =>
+                      `<option value="${rel}" ${member.nominee.relation === rel ? "selected" : ""}>${rel}</option>`
+                    ).join("")}
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Age *</label>
+                  <input name="nomineeAge" type="number" min="1" max="100" value="${member.nominee.age}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Mobile</label>
+                  <input name="nomineeContact" type="tel" value="${escapeAttr(member.nominee.contact || "")}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow">
+              Save Profile & Bank Details
+            </button>
+          </form>
+
+          <form onsubmit="handleChangePassword(event, '${member.id}')" class="bg-slate-800 border border-sky-500/40 rounded-2xl p-4 space-y-2.5 text-xs">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-sky-300">Change My Password</h3>
+            </div>
+            <div>
+              <label class="block text-slate-300 mb-1">Current Password *</label>
+              <div class="relative">
+                <input id="profCurrPass" name="currentPass" type="password" placeholder="Enter current password" required class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-10 py-2 text-xs text-white" />
+                <button type="button" onclick="togglePasswordVisibility('profCurrPass', this)" aria-label="Show or Hide Password" class="absolute inset-y-0 right-0 px-2.5 flex items-center text-slate-300 hover:text-amber-300 text-sm">👁</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-300 mb-1">New Password *</label>
+                <div class="relative">
+                  <input id="profNewPass" name="newPass" type="password" minlength="4" placeholder="New password" required class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-10 py-2 text-xs text-white" />
+                  <button type="button" onclick="togglePasswordVisibility('profNewPass', this)" aria-label="Show or Hide Password" class="absolute inset-y-0 right-0 px-2.5 flex items-center text-slate-300 hover:text-amber-300 text-sm">👁</button>
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">Confirm Password *</label>
+                <div class="relative">
+                  <input id="profConfirmPass" name="confirmPass" type="password" minlength="4" placeholder="Repeat password" required class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-10 py-2 text-xs text-white" />
+                  <button type="button" onclick="togglePasswordVisibility('profConfirmPass', this)" aria-label="Show or Hide Password" class="absolute inset-y-0 right-0 px-2.5 flex items-center text-slate-300 hover:text-amber-300 text-sm">👁</button>
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs">
+              Update Password
+            </button>
+          </form>
+        </div>
+      `;
+    }
+
+    function renderAdminView() {
+      if (!state.adminLoggedIn) {
+        return `
+          <div class="bg-slate-800 border border-amber-500/40 rounded-2xl p-5 space-y-4">
+            <h2 class="text-lg font-bold text-amber-300">Admin Login</h2>
+            <p class="text-xs text-slate-400">Authorized admin ID aur password darj karein.</p>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Admin ID</label>
+                <input id="adminLoginId" type="text" placeholder="Enter Admin ID" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white" />
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Admin Password</label>
+                <div class="relative">
+                  <input id="adminLoginPass" type="password" value="" placeholder="Enter Admin Password" class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-3 pr-11 py-2.5 text-sm text-white" />
+                  <button type="button" onclick="togglePasswordVisibility('adminLoginPass', this)" aria-label="Show or Hide Password" class="absolute inset-y-0 right-0 px-3 flex items-center text-slate-300 hover:text-amber-300 text-base">👁</button>
+                </div>
+              </div>
+              <button type="button" onclick="handleAdminLogin()" class="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold py-2.5 rounded-xl text-sm">Unlock Admin Panel</button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (state.adminTab === "utr") return renderAdminUtrVerification();
+      if (state.adminTab === "payouts") return renderAdminPayoutCenter();
+      if (state.adminTab === "members") return renderAdminMembers();
+      if (state.adminTab === "tds") return renderAdminTdsList();
+      if (state.adminTab === "deposit") return renderAdminTaxDeposits();
+      if (state.adminTab === "media") return renderAdminNewsAndYoutube();
+
+      const totalTdsLiability = state.tdsEntries.reduce((acc, r) => acc + r.tdsAmount, 0);
+      const activeMembersCount = state.members.filter(m => m.status === "ACTIVE").length;
+      const totalDueWallet = state.members.reduce((acc, m) => acc + (m.cashWallet || 0), 0);
+
+      return `
+        <div class="space-y-4">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs text-amber-300 font-bold">ADMIN PROFIT & BANK SETTINGS</div>
+              <div class="text-sm font-bold text-white">Active IDs: ${activeMembersCount} | Closed Sessions: ${state.closedSessionsCount}</div>
+            </div>
+            ${renderAdminLogoutButton()}
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5">
+              <div class="text-[11px] text-slate-400">Company PV Turnover</div>
+              <div class="text-lg font-extrabold text-sky-400 mt-1">${state.companyMonthlyPv.toLocaleString("en-IN")} PV</div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5">
+              <div class="text-[11px] text-slate-400">Confirmed Joining ₹</div>
+              <div class="text-lg font-extrabold text-white mt-1">₹${state.companyTotalCollection.toLocaleString("en-IN")}</div>
+            </div>
+            <div class="bg-slate-800 border border-amber-500/30 rounded-xl p-3.5">
+              <div class="text-[11px] text-slate-400">Due Member Payouts</div>
+              <div class="text-lg font-extrabold text-amber-300 mt-1">₹${totalDueWallet.toLocaleString("en-IN")}</div>
+              <div class="text-[10px] text-emerald-400 mt-0.5">Paid Out: ₹${(state.totalDisbursedToMembers || 0).toLocaleString("en-IN")}</div>
+            </div>
+            <div class="bg-slate-800 border border-rose-500/30 rounded-xl p-3.5">
+              <div class="text-[11px] text-slate-400">Govt Tax / TDS Payable</div>
+              <div class="text-lg font-extrabold text-rose-400 mt-1">₹${totalTdsLiability.toLocaleString("en-IN")}</div>
+            </div>
+          </div>
+
+          <div class="bg-emerald-950/60 border-2 border-emerald-400/70 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-emerald-300 uppercase">Admin Net Profit Balance (10% Admin Charges)</div>
+              <div class="text-2xl font-extrabold text-emerald-400">₹${state.adminNetProfitBalance.toLocaleString("en-IN")}</div>
+            </div>
+            <button type="button" onclick="setAdminTab('payouts')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shrink-0">
+              Pay Members →
+            </button>
+          </div>
+
+          <form onsubmit="handleSaveAdminPaymentDetails(event)" class="bg-slate-800 border border-sky-500/40 rounded-2xl p-4 space-y-2.5 text-xs">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-sky-300">Edit Admin UPI, QR & Bank Details</h3>
+              <span class="text-[10px] text-emerald-400 font-semibold">Live Syncs to Form</span>
+            </div>
+            <div>
+              <label class="block text-slate-300 mb-1">Admin UPI ID *</label>
+              <input name="upiId" type="text" value="${escapeAttr(state.adminPaymentDetails.upiId)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-emerald-300" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-300 mb-1">Account Holder *</label>
+                <input name="accountHolder" type="text" value="${escapeAttr(state.adminPaymentDetails.accountHolder)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">Bank Name *</label>
+                <input name="bankName" type="text" value="${escapeAttr(state.adminPaymentDetails.bankName)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-300 mb-1">Account Number *</label>
+                <input name="accountNumber" type="text" value="${escapeAttr(state.adminPaymentDetails.accountNumber)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white" />
+              </div>
+              <div>
+                <label class="block text-slate-300 mb-1">IFSC Code *</label>
+                <input name="ifscCode" type="text" value="${escapeAttr(state.adminPaymentDetails.ifscCode)}" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-amber-300 uppercase" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-slate-300 mb-1">Payment Instruction Note</label>
+              <input name="qrNote" type="text" value="${escapeAttr(state.adminPaymentDetails.qrNote)}" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            </div>
+            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs">
+              Save & Update Joining Form Payment Options
+            </button>
+          </form>
+
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2">
+            <button type="button" onclick="closeCurrentSessionManual()" class="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs py-2.5 rounded-xl">Close Current Session Now</button>
+            <button type="button" onclick="resetToZeroState()" class="w-full bg-slate-900 hover:bg-rose-950 text-rose-300 border border-rose-500/40 font-semibold text-xs py-2.5 rounded-xl">Reset All Data to 0</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAdminPayoutCenter() {
+      const membersWithDue = state.members.filter(m => (m.cashWallet || 0) > 0);
+      const payingMember = state.payingMemberId ? ensureMemberBoardSchema(getMemberById(state.payingMemberId)) : null;
+      const totalDue = membersWithDue.reduce((acc, m) => acc + (m.cashWallet || 0), 0);
+
+      return `
+        <div class="space-y-3">
+          <div class="bg-slate-800 border border-emerald-500/40 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base font-bold text-emerald-300">Admin Member Payout Center</h2>
+              <p class="text-xs text-slate-400">Due Wallet: <b class="text-amber-300">₹${totalDue.toLocaleString("en-IN")}</b> • Total Paid: <b class="text-emerald-400">₹${(state.totalDisbursedToMembers || 0).toLocaleString("en-IN")}</b></p>
+            </div>
+            ${renderAdminLogoutButton()}
+          </div>
+
+          ${payingMember ? (() => {
+            const bd = payingMember.bankDetails;
+            const upiPayUrl = bd.upiId
+              ? `upi://pay?pa=${encodeURIComponent(bd.upiId)}&pn=${encodeURIComponent(bd.accountHolder || payingMember.name)}&am=${payingMember.cashWallet}&cu=INR&tn=${encodeURIComponent("SMPL-Payout-" + payingMember.id)}`
+              : "";
+            return `
+              <form onsubmit="handleAdminRecordPayout(event, '${payingMember.id}')" class="bg-slate-900 border-2 border-emerald-400 rounded-2xl p-4 space-y-3 text-xs">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="text-sm font-bold text-emerald-300">Pay Payout to ${escapeHtml(payingMember.name)} (${payingMember.id})</div>
+                    <div class="text-[11px] text-slate-400">Available Cash Wallet: <b class="text-amber-300">₹${payingMember.cashWallet.toLocaleString("en-IN")}</b></div>
+                  </div>
+                  <button type="button" onclick="closeAdminPayForm()" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">Cancel</button>
+                </div>
+
+                <div class="bg-slate-950 border border-slate-700 rounded-xl p-3 space-y-1.5">
+                  <div class="font-bold text-amber-300">Member Saved Bank / UPI Details</div>
+                  <div>Holder: <b class="text-white">${escapeHtml(bd.accountHolder || payingMember.name)}</b></div>
+                  <div>Bank: <b class="text-white">${escapeHtml(bd.bankName || "Not Added")}</b></div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span>A/C: <b class="font-mono text-white">${escapeHtml(bd.accountNumber || "Not Added")}</b></span>
+                    ${bd.accountNumber ? `<button type="button" onclick="copyTextValue('${escapeAttr(bd.accountNumber)}', 'Account Number', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy A/C</button>` : ""}
+                  </div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span>IFSC: <b class="font-mono text-amber-300">${escapeHtml(bd.ifscCode || "Not Added")}</b></span>
+                    ${bd.ifscCode ? `<button type="button" onclick="copyTextValue('${escapeAttr(bd.ifscCode)}', 'IFSC Code', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy IFSC</button>` : ""}
+                  </div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span>UPI: <b class="font-mono text-emerald-300">${escapeHtml(bd.upiId || "Not Added")}</b></span>
+                    <div class="flex gap-1.5">
+                      ${upiPayUrl ? `<a href="${escapeAttr(upiPayUrl)}" class="bg-sky-500 text-slate-950 font-extrabold px-2.5 py-0.5 rounded">Pay via UPI App</a>` : ""}
+                      ${bd.upiId ? `<button type="button" onclick="copyTextValue('${escapeAttr(bd.upiId)}', 'Member UPI', this)" class="bg-emerald-600 text-slate-950 font-bold px-2 py-0.5 rounded">Copy UPI</button>` : ""}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-slate-300 mb-1">Payout Amount (₹) *</label>
+                    <input name="amount" type="number" min="1" max="${payingMember.cashWallet}" value="${payingMember.cashWallet}" required class="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-xs font-bold text-emerald-300" />
+                  </div>
+                  <div>
+                    <label class="block text-slate-300 mb-1">Payment Mode *</label>
+                    <select name="mode" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white">
+                      <option value="UPI">UPI Transfer</option>
+                      <option value="IMPS / NEFT">Bank IMPS / NEFT</option>
+                      <option value="CASH">Cash Handover</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-slate-300 mb-1">Transaction / UTR / Receipt Reference *</label>
+                  <input name="refNo" type="text" placeholder="Enter Bank UTR / UPI Ref No." required class="w-full bg-slate-950 border border-amber-400/50 rounded-xl px-3 py-2 text-xs font-mono text-amber-200 uppercase" />
+                </div>
+
+                <div>
+                  <label class="block text-slate-300 mb-1">Remark (Optional)</label>
+                  <input name="note" type="text" placeholder="e.g. Session payout settled" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs shadow">
+                  ✓ Confirm Paid & Deduct from Member Wallet
+                </button>
+              </form>
+            `;
+          })() : ""}
+
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2.5 text-xs">
+            <h3 class="text-sm font-bold text-amber-300">Members Pending Payout (${membersWithDue.length})</h3>
+            ${membersWithDue.length === 0
+              ? `<div class="text-slate-400 py-2">Abhi kisi member ka unpaid Cash Wallet balance due nahi hai.</div>`
+              : membersWithDue.map(m => {
+                  ensureMemberBoardSchema(m);
+                  const bd = m.bankDetails;
+                  return `
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-2">
+                      <div class="flex items-center justify-between gap-2">
+                        <div>
+                          <div class="font-bold text-white text-sm">${escapeHtml(m.name)} <span class="font-mono text-amber-300 text-xs">(${m.id})</span></div>
+                          <div class="text-[11px] text-slate-300 mt-0.5">
+                            ${bd.accountNumber || bd.upiId
+                              ? `${bd.bankName ? escapeHtml(bd.bankName) + " • " : ""}${bd.accountNumber ? "A/C " + escapeHtml(bd.accountNumber) + " (" + escapeHtml(bd.ifscCode) + ")" : ""} ${bd.upiId ? "• UPI: " + escapeHtml(bd.upiId) : ""}`
+                              : `<span class="text-rose-300 font-semibold">Bank/UPI Not Added — Edit ID mein add karein</span>`}
+                          </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <div class="text-[10px] text-slate-400">Due Cash</div>
+                          <div class="text-base font-extrabold text-emerald-400">₹${m.cashWallet.toLocaleString("en-IN")}</div>
+                        </div>
+                      </div>
+                      <div class="flex gap-2">
+                        <button type="button" onclick="openAdminPayForm('${m.id}')" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2 rounded-lg">
+                          ₹ Pay Now / Record Payout
+                        </button>
+                        <button type="button" onclick="openAdminEditMember('${m.id}')" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-3 py-2 rounded-lg">
+                          Edit Bank
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                }).join("")
+            }
+          </div>
+
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2 text-xs">
+            <h3 class="text-sm font-bold text-sky-300">Completed Payout History (${state.payoutRecords.length})</h3>
+            ${state.payoutRecords.length === 0
+              ? `<div class="text-slate-400">Abhi tak koi payout record nahi hai.</div>`
+              : state.payoutRecords.map(p => `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 flex items-center justify-between gap-2">
+                  <div>
+                    <div class="font-bold text-white">${escapeHtml(p.memberName)} (${p.memberId}) — <span class="text-emerald-400">₹${p.amount.toLocaleString("en-IN")}</span></div>
+                    <div class="text-slate-400">Mode: <b>${escapeHtml(p.mode)}</b> | Ref: <span class="font-mono text-amber-300">${escapeHtml(p.refNo)}</span></div>
+                    <div class="text-[10px] text-slate-500">${escapeHtml(p.paidAt)}${p.note ? " • " + escapeHtml(p.note) : ""}</div>
+                  </div>
+                  <span class="bg-emerald-500/20 text-emerald-300 font-bold text-[10px] px-2 py-1 rounded-full shrink-0">PAID</span>
+                </div>
+              `).join("")
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAdminUtrVerification() {
+      const joinRequests = state.members.filter(m => m.id !== "SMPL1001");
+      return `
+        <div class="space-y-3">
+          <div class="bg-slate-800 border border-amber-500/40 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base font-bold text-amber-300">UTR & Payment Verification</h2>
+              <p class="text-xs text-slate-400">Confirm UTR, Mark Fake, or Delete entries.</p>
+            </div>
+            ${renderAdminLogoutButton()}
+          </div>
+
+          ${joinRequests.length === 0
+            ? `<div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 text-center text-xs text-slate-400">Abhi tak koi joining UTR request nahi hai.</div>`
+            : joinRequests.slice().reverse().map(m => {
+                const pkg = PACKAGES[m.activePackageLevel - 1] || PACKAGES[0];
+                return `
+                  <div class="bg-slate-800 border ${m.status === 'PENDING' ? 'border-amber-400/70' : m.status === 'FAKE' ? 'border-rose-500/70' : 'border-emerald-500/50'} rounded-2xl p-4 space-y-2 text-xs">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <span class="font-bold text-white text-sm">${escapeHtml(m.name)}</span>
+                        <span class="font-mono text-amber-300"> (${m.id})</span>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold ${m.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' : m.status === 'FAKE' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}">${m.status}</span>
+                    </div>
+                    <div class="bg-slate-900 rounded-xl p-2.5 space-y-1 text-slate-300">
+                      <div>Board #${pkg.level}: <b class="text-white">${pkg.name} (${pkg.pv} PV)</b> | Paid: <b class="text-emerald-400">₹${m.joiningAmount}</b></div>
+                      <div>Mode: <b class="text-sky-300">${escapeHtml(m.paymentMode || "UPI")}</b> | UTR: <span class="font-mono text-amber-300 font-bold">${escapeHtml(m.utrNumber)}</span></div>
+                      <div>Sponsor: <b>${escapeHtml(m.sponsorId)}</b> | Leg: <b class="text-sky-300">${escapeHtml(m.placement)}</b></div>
+                      <div>Nominee: <b class="text-white">${escapeHtml(m.nominee.name)}</b> (${escapeHtml(m.nominee.relation)}, Age ${m.nominee.age})</div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 pt-1">
+                      ${m.status !== "ACTIVE" ? `<button type="button" onclick="approveMemberUtr('${m.id}')" class="bg-emerald-500 text-slate-950 font-extrabold px-3 py-1.5 rounded-lg">✓ Confirm UTR</button>` : ""}
+                      ${m.status === "PENDING" ? `<button type="button" onclick="markMemberUtrFake('${m.id}')" class="bg-amber-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg">⚠ Mark Fake</button>` : ""}
+                      ${m.status !== "ACTIVE" ? `<button type="button" onclick="deleteUnapprovedMember('${m.id}')" class="bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg">🗑 Delete</button>` : `<span class="text-[11px] text-emerald-400 font-semibold">✓ Active in Tree</span>`}
+                      <button type="button" onclick="openAdminEditMember('${m.id}')" class="bg-sky-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg">✎ Edit Account</button>
+                    </div>
+                  </div>
+                `;
+              }).join("")
+          }
+        </div>
+      `;
+    }
+
+    function renderAdminMembers() {
+      const editingMember = state.editingMemberId ? ensureMemberBoardSchema(getMemberById(state.editingMemberId)) : null;
+      const selected = state.selectedAdminMemberId ? ensureMemberBoardSchema(getMemberById(state.selectedAdminMemberId)) : null;
+
+      return `
+        <div class="space-y-3">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base font-bold text-white">All Members & Payout Bank Details (${state.members.length})</h2>
+              <p class="text-xs text-slate-400">Admin kisi bhi member ke Bank A/C, IFSC, UPI, password, board level, wallet aur PAN edit/copy kar sakta hai.</p>
+            </div>
+            ${renderAdminLogoutButton()}
+          </div>
+
+          ${editingMember ? `
+            <form onsubmit="handleSaveMemberAccountEdit(event, '${editingMember.id}')" class="bg-slate-900 border-2 border-sky-400 rounded-2xl p-4 space-y-2.5 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-sky-300">Edit Member Account: ${editingMember.id}</span>
+                <button type="button" onclick="closeAdminEditMember()" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">Cancel</button>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Full Name *</label>
+                  <input name="name" type="text" value="${escapeAttr(editingMember.name)}" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Mobile *</label>
+                  <input name="mobile" type="text" value="${escapeAttr(editingMember.mobile)}" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Login Password *</label>
+                  <input name="password" type="text" value="${escapeAttr(editingMember.password)}" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-amber-300" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Account Status</label>
+                  <select name="status" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white">
+                    <option value="ACTIVE" ${editingMember.status === "ACTIVE" ? "selected" : ""}>ACTIVE</option>
+                    <option value="PENDING" ${editingMember.status === "PENDING" ? "selected" : ""}>PENDING</option>
+                    <option value="FAKE" ${editingMember.status === "FAKE" ? "selected" : ""}>FAKE / BLOCKED</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="border-t border-slate-800 pt-2 space-y-2">
+                <div class="font-bold text-amber-300">Member Payout Bank & UPI Details</div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-slate-300 mb-1">Account Holder</label>
+                    <input name="accountHolder" type="text" value="${escapeAttr(editingMember.bankDetails.accountHolder || editingMember.name)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                  </div>
+                  <div>
+                    <label class="block text-slate-300 mb-1">Bank Name</label>
+                    <input name="bankName" type="text" value="${escapeAttr(editingMember.bankDetails.bankName)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-slate-300 mb-1">Account Number</label>
+                    <input name="accountNumber" type="text" value="${escapeAttr(editingMember.bankDetails.accountNumber)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-white" />
+                  </div>
+                  <div>
+                    <label class="block text-slate-300 mb-1">IFSC Code</label>
+                    <input name="ifscCode" type="text" value="${escapeAttr(editingMember.bankDetails.ifscCode)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-amber-300 uppercase" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">UPI ID</label>
+                  <input name="upiId" type="text" value="${escapeAttr(editingMember.bankDetails.upiId)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-emerald-300" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Unlocked Board (1-11)</label>
+                  <select name="activePackageLevel" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white">
+                    ${PACKAGES.map(p => `<option value="${p.level}" ${p.level === editingMember.activePackageLevel ? "selected" : ""}>Board #${p.level}</option>`).join("")}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Cash Wallet (₹)</label>
+                  <input name="cashWallet" type="number" value="${editingMember.cashWallet}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-emerald-300 font-bold" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Activation Box (₹)</label>
+                  <input name="upgradeWalletPv" type="number" value="${editingMember.upgradeWalletPv}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-amber-300 font-bold" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">PAN Number</label>
+                  <input name="pan" type="text" value="${escapeAttr(editingMember.pan)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 uppercase text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">PAN Slab</label>
+                  <select name="hasPan" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white">
+                    <option value="true" ${editingMember.hasPan ? "selected" : ""}>PAN Verified (5%)</option>
+                    <option value="false" ${!editingMember.hasPan ? "selected" : ""}>No PAN (20%)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Name</label>
+                  <input name="nomineeName" type="text" value="${escapeAttr(editingMember.nominee.name)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                </div>
+                <div>
+                  <label class="block text-slate-300 mb-1">Nominee Relation</label>
+                  <input name="nomineeRelation" type="text" value="${escapeAttr(editingMember.nominee.relation)}" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+                </div>
+              </div>
+              <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-2 rounded-xl">
+                Save Member Account Changes
+              </button>
+            </form>
+          ` : ""}
+
+          ${selected && !editingMember ? `
+            <div class="bg-slate-900 border-2 border-amber-400 rounded-2xl p-4 space-y-2 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-bold text-amber-300">${escapeHtml(selected.name)} (${selected.id})</span>
+                <button type="button" onclick="selectAdminMember(null)" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg">Close</button>
+              </div>
+              <div>Status: <b>${selected.status}</b></div>
+              <div>Due Cash Wallet: <b class="text-emerald-400">₹${selected.cashWallet}</b> | Paid Out: <b class="text-sky-300">₹${selected.totalCashPaidOut || 0}</b></div>
+
+              <div class="bg-slate-950 border border-emerald-500/40 rounded-xl p-2.5 space-y-1.5">
+                <div class="font-bold text-emerald-300">Member Payout Bank & UPI</div>
+                <div>Holder: <b class="text-white">${escapeHtml(selected.bankDetails.accountHolder || selected.name)}</b></div>
+                <div>Bank: <b class="text-white">${escapeHtml(selected.bankDetails.bankName || "Not Added")}</b></div>
+                <div class="flex items-center justify-between gap-2">
+                  <span>A/C: <b class="font-mono text-white">${escapeHtml(selected.bankDetails.accountNumber || "Not Added")}</b></span>
+                  ${selected.bankDetails.accountNumber ? `<button type="button" onclick="copyTextValue('${escapeAttr(selected.bankDetails.accountNumber)}', 'Member A/C', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy A/C</button>` : ""}
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <span>IFSC: <b class="font-mono text-amber-300">${escapeHtml(selected.bankDetails.ifscCode || "Not Added")}</b></span>
+                  ${selected.bankDetails.ifscCode ? `<button type="button" onclick="copyTextValue('${escapeAttr(selected.bankDetails.ifscCode)}', 'Member IFSC', this)" class="bg-slate-800 text-white font-bold px-2 py-0.5 rounded">Copy IFSC</button>` : ""}
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <span>UPI: <b class="font-mono text-emerald-300">${escapeHtml(selected.bankDetails.upiId || "Not Added")}</b></span>
+                  ${selected.bankDetails.upiId ? `<button type="button" onclick="copyTextValue('${escapeAttr(selected.bankDetails.upiId)}', 'Member UPI', this)" class="bg-emerald-600 text-slate-950 font-bold px-2 py-0.5 rounded">Copy UPI</button>` : ""}
+                </div>
+              </div>
+
+              <div>Nominee: ${escapeHtml(selected.nominee.name)} (${escapeHtml(selected.nominee.relation)}, Age ${selected.nominee.age})</div>
+              <div class="flex flex-wrap gap-2 pt-1">
+                ${selected.cashWallet > 0 ? `<button type="button" onclick="openAdminPayForm('${selected.id}')" class="bg-emerald-500 text-slate-950 font-extrabold px-3 py-1.5 rounded-lg">₹ Pay Payout</button>` : ""}
+                <button type="button" onclick="openAdminEditMember('${selected.id}')" class="bg-sky-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg">✎ Edit Account</button>
+                <button type="button" onclick="inspectMemberDashboard('${selected.id}')" class="bg-slate-700 text-white font-bold px-3 py-1.5 rounded-lg">View L/R Tree</button>
+              </div>
+            </div>
+          ` : ""}
+
+          ${state.members.map(m => {
+            ensureMemberBoardSchema(m);
+            const lCount = collectLegMembers(m.leftChildId).length;
+            const rCount = collectLegMembers(m.rightChildId).length;
+            const hasPayoutBank = Boolean(m.bankDetails.accountNumber || m.bankDetails.upiId);
+            return `
+              <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5 flex items-center justify-between gap-2">
+                <div onclick="selectAdminMember('${m.id}')" class="cursor-pointer min-w-0">
+                  <div class="text-xs font-mono text-amber-300">${m.id} • ${escapeHtml(m.placement)} • ${m.status}</div>
+                  <div class="text-sm font-bold text-white truncate">${escapeHtml(m.name)}</div>
+                  <div class="text-[11px] text-slate-400">Due: <b class="text-emerald-400">₹${m.cashWallet}</b> | Paid: <b class="text-sky-300">₹${m.totalCashPaidOut || 0}</b> | L:${lCount} R:${rCount}</div>
+                  <div class="text-[10px] mt-0.5 ${hasPayoutBank ? 'text-emerald-300' : 'text-amber-300'}">
+                    ${hasPayoutBank
+                      ? `Payout: ${escapeHtml(m.bankDetails.bankName || "UPI")} ${m.bankDetails.accountNumber ? "• A/C " + escapeHtml(m.bankDetails.accountNumber) : ""} ${m.bankDetails.upiId ? "• " + escapeHtml(m.bankDetails.upiId) : ""}`
+                      : "Bank/UPI: Pending Profile Update"}
+                  </div>
+                </div>
+                <div class="flex flex-col gap-1 shrink-0">
+                  ${m.cashWallet > 0 ? `<button type="button" onclick="openAdminPayForm('${m.id}')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[11px] px-2.5 py-1 rounded-lg">₹ Pay</button>` : ""}
+                  <button type="button" onclick="openAdminEditMember('${m.id}')" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] px-2.5 py-1 rounded-lg">Edit</button>
+                  <button type="button" onclick="inspectMemberDashboard('${m.id}')" class="bg-slate-700 hover:bg-slate-600 text-white font-semibold text-[11px] px-2.5 py-1 rounded-lg">L/R Tree</button>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function renderAdminTdsList() {
+      return `
+        <div class="space-y-3">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <h2 class="text-base font-bold text-white">PAN-Wise TDS Entries</h2>
+            ${renderAdminLogoutButton()}
+          </div>
+          ${state.tdsEntries.length === 0
+            ? `<div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 text-xs text-slate-400">₹0 TDS entries yet.</div>`
+            : state.tdsEntries.map(entry => `
+              <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5 text-xs space-y-1.5">
+                <div class="font-bold text-white">${escapeHtml(entry.memberName)} (${entry.memberId}) — Board #${entry.boardLevel}</div>
+                <div class="text-slate-300">Gross: ₹${entry.grossPayout} | TDS (${entry.tdsRate}%): <b class="text-rose-400">₹${entry.tdsAmount}</b> | PAN: <span class="font-mono text-amber-300">${entry.hasPan && entry.pan ? escapeHtml(entry.pan) : "NO PAN"}</span></div>
+              </div>
+            `).join("")
+          }
+        </div>
+      `;
+    }
+
+    function renderAdminTaxDeposits() {
+      return `
+        <div class="space-y-3">
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-2">
+            <h2 class="text-base font-bold text-white">Government Tax Deposits</h2>
+            ${renderAdminLogoutButton()}
+          </div>
+          ${state.taxDeposits.map(d => `
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-3.5 text-xs flex items-center justify-between">
+              <div>
+                <div class="font-bold text-amber-300">${escapeHtml(d.head)}</div>
+                <div class="text-slate-300">${escapeHtml(d.month)} • ${escapeHtml(d.status)}</div>
+              </div>
+              <div class="font-extrabold text-rose-400">₹${d.amount.toLocaleString("en-IN")}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderAdminNewsAndYoutube() {
+      return `
+        <div class="space-y-4">
+          <form onsubmit="handleAddNews(event)" class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-sm font-bold text-amber-300">News Ticker Manager</h2>
+              ${renderAdminLogoutButton()}
+            </div>
+            <input name="newsText" type="text" placeholder="Enter news..." required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            <button type="submit" class="bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">+ Add News</button>
+            ${state.newsItems.map(n => `
+              <div class="flex items-center justify-between bg-slate-900 rounded-xl px-3 py-2 text-xs gap-2">
+                <span>${escapeHtml(n.text)}</span>
+                <button type="button" onclick="deleteNews('${n.id}')" class="text-rose-400 font-bold">Delete</button>
+              </div>
+            `).join("")}
+          </form>
+
+          <form onsubmit="handleAddYoutube(event)" class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-2.5">
+            <h2 class="text-sm font-bold text-rose-400">YouTube Links (${state.youtubeLinks.length}/5)</h2>
+            <input name="ytTitle" type="text" placeholder="Title" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            <input name="ytUrl" type="url" placeholder="https://youtube.com/..." required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white" />
+            <button type="submit" ${state.youtubeLinks.length >= 5 ? "disabled" : ""} class="bg-rose-600 disabled:opacity-40 text-white font-bold text-xs px-4 py-2 rounded-xl">+ Add YouTube Link</button>
+            ${state.youtubeLinks.map((yt, i) => `
+              <div class="flex items-center justify-between bg-slate-900 rounded-xl px-3 py-2 text-xs gap-2">
+                <span class="truncate">${i + 1}. ${escapeHtml(yt.title)}</span>
+                <button type="button" onclick="deleteYoutube('${yt.id}')" class="text-rose-400 font-bold">Delete</button>
+              </div>
+            `).join("")}
+          </form>
+        </div>
+      `;
+    }
+
+    function renderMemberBottomNav() {
+      const tabs = [
+        { id: "dashboard", label: "Home" },
+        { id: "packages", label: "11 Boards" },
+        { id: "tree", label: "L/R List" },
+        { id: "join", label: "Joining" },
+        { id: "tax", label: "PAN Tax" },
+        { id: "profile", label: "Profile" }
+      ];
+      return `
+        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[520px] bg-slate-900 border-t border-slate-800 grid grid-cols-6 py-2 px-1 z-30">
+          ${tabs.map(t => `
+            <button type="button" onclick="setMemberTab('${t.id}')" class="flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-bold ${state.memberTab === t.id ? 'text-emerald-400 bg-slate-800' : 'text-slate-400'}">${t.label}</button>
+          `).join("")}
+        </nav>
+      `;
+    }
+
+    function renderAdminBottomNav() {
+      const pendingCount = state.members.filter(m => m.status === "PENDING").length;
+      const duePayCount = state.members.filter(m => (m.cashWallet || 0) > 0).length;
+      const tabs = [
+        { id: "utr", label: pendingCount > 0 ? `UTR (${pendingCount})` : "UTR Check" },
+        { id: "payouts", label: duePayCount > 0 ? `Pay (${duePayCount})` : "Pay Out" },
+        { id: "members", label: "Edit IDs" },
+        { id: "overview", label: "Profit/UPI" },
+        { id: "tds", label: "PAN TDS" },
+        { id: "media", label: "News/YT" }
+      ];
+      return `
+        <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[520px] bg-slate-900 border-t border-slate-800 grid grid-cols-6 py-2 px-1 z-30">
+          ${tabs.map(t => `
+            <button type="button" onclick="setAdminTab('${t.id}')" class="flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] font-bold ${state.adminTab === t.id ? 'text-amber-300 bg-slate-800' : 'text-slate-400'}">${t.label}</button>
+          `).join("")}
+        </nav>
+      `;
+    }
+
+    function switchRole(role) { state.roleView = role; saveState(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    function setMemberTab(tab) { state.memberTab = tab; saveState(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    function setAdminTab(tab) { state.adminTab = tab; saveState(); render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    function updateJoinPackagePreview(levelStr) {
+      state.selectedJoinPkgLevel = parseInt(levelStr || "1", 10);
+      render();
+    }
+    function setPaymentMode(mode) { state.selectedPaymentMode = mode; render(); }
+    function clearCreatedBanner() { state.lastCreatedCredentials = null; saveState(); render(); }
+    function selectAdminMember(id) { state.selectedAdminMemberId = id; render(); }
+
+    function openAdminEditMember(id) {
+      state.adminTab = "members";
+      state.editingMemberId = id;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function closeAdminEditMember() {
+      state.editingMemberId = null;
+      render();
+    }
+
+    function openAdminPayForm(id) {
+      state.adminTab = "payouts";
+      state.payingMemberId = id;
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function closeAdminPayForm() {
+      state.payingMemberId = null;
+      render();
+    }
+
+    function handleAdminRecordPayout(event, memberId) {
+      event.preventDefault();
+      const m = getMemberById(memberId);
+      if (!m) return;
+      ensureMemberBoardSchema(m);
+      const fd = new FormData(event.target);
+      const amount = parseInt(fd.get("amount") || "0", 10);
+      const mode = (fd.get("mode") || "UPI").trim();
+      const refNo = (fd.get("refNo") || "").trim().toUpperCase();
+      const note = (fd.get("note") || "").trim();
+
+      if (isNaN(amount) || amount <= 0 || amount > m.cashWallet) {
+        alert(`Invalid payout amount! Available wallet: ₹${m.cashWallet}`);
+        return;
+      }
+      if (!refNo) {
+        alert("Please enter Transaction / UTR / Receipt Reference!");
+        return;
+      }
+
+      const nowStr = new Date().toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      });
+
+      m.cashWallet -= amount;
+      m.totalCashPaidOut = (m.totalCashPaidOut || 0) + amount;
+      state.totalDisbursedToMembers = (state.totalDisbursedToMembers || 0) + amount;
+
+      state.payoutRecords.unshift({
+        id: "PAY-" + Math.floor(10000 + Math.random() * 90000),
+        memberId: m.id,
+        memberName: m.name,
+        amount,
+        mode,
+        refNo,
+        note,
+        paidAt: nowStr
+      });
+
+      state.payingMemberId = null;
+      saveState();
+      render();
+      alert(`Payout of ₹${amount.toLocaleString("en-IN")} to ${m.name} (${m.id}) recorded! Ref: ${refNo}`);
+    }
+
+    function inspectMemberDashboard(id) {
+      state.activeMemberId = id;
+      state.memberLoggedIn = true;
+      state.roleView = "member";
+      state.memberTab = "tree";
+      saveState();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function handleMemberProfileEdit(event, memberId) {
+      event.preventDefault();
+      const m = getMemberById(memberId);
+      if (!m) return;
+      ensureMemberBoardSchema(m);
+      const fd = new FormData(event.target);
+
+      const accountHolder = (fd.get("accountHolder") || m.name).trim();
+      const bankName = (fd.get("bankName") || "").trim();
+      const accountNumber = (fd.get("accountNumber") || "").trim();
+      const ifscCode = (fd.get("ifscCode") || "").trim().toUpperCase();
+      const upiId = (fd.get("upiId") || "").trim();
+
+      m.bankDetails = {
+        accountHolder,
+        bankName,
+        accountNumber,
+        ifscCode,
+        upiId
+      };
+      m.bankInfo = accountNumber
+        ? `${bankName} • ${accountNumber} (${ifscCode})`
+        : (upiId || "Pending Bank Update");
+
+      m.mobile = (fd.get("mobile") || m.mobile).trim();
+      m.age = parseInt(fd.get("age") || String(m.age), 10);
+      m.pan = (fd.get("pan") || "").trim().toUpperCase();
+      m.hasPan = fd.get("hasPan") === "true" && m.pan.length > 0;
+
+      m.address = {
+        village: (fd.get("village") || m.address.village).trim(),
+        postBlock: (fd.get("postBlock") || m.address.postBlock).trim(),
+        district: (fd.get("district") || m.address.district).trim(),
+        state: (fd.get("state") || m.address.state).trim(),
+        pin: (fd.get("pin") || m.address.pin).trim()
+      };
+
+      m.nominee = {
+        name: (fd.get("nomineeName") || m.nominee.name).trim(),
+        relation: (fd.get("nomineeRelation") || m.nominee.relation).trim(),
+        age: parseInt(fd.get("nomineeAge") || String(m.nominee.age), 10),
+        contact: (fd.get("nomineeContact") || "").trim()
+      };
+
+      saveState();
+      render();
+      alert("Profile, Bank Account, IFSC & UPI details saved successfully!");
+    }
+
+    function handleSaveMemberAccountEdit(event, memberId) {
+      event.preventDefault();
+      const m = getMemberById(memberId);
+      if (!m) return;
+      ensureMemberBoardSchema(m);
+      const fd = new FormData(event.target);
+
+      m.name = (fd.get("name") || m.name).trim();
+      m.mobile = (fd.get("mobile") || m.mobile).trim();
+      m.password = (fd.get("password") || m.password).trim();
+      m.status = (fd.get("status") || m.status).trim();
+
+      const accountHolder = (fd.get("accountHolder") || m.name).trim();
+      const bankName = (fd.get("bankName") || "").trim();
+      const accountNumber = (fd.get("accountNumber") || "").trim();
+      const ifscCode = (fd.get("ifscCode") || "").trim().toUpperCase();
+      const upiId = (fd.get("upiId") || "").trim();
+
+      m.bankDetails = {
+        accountHolder,
+        bankName,
+        accountNumber,
+        ifscCode,
+        upiId
+      };
+      m.bankInfo = accountNumber
+        ? `${bankName} • ${accountNumber} (${ifscCode})`
+        : (upiId || "Pending Bank Update");
+
+      const newLevel = parseInt(fd.get("activePackageLevel") || String(m.activePackageLevel), 10);
+      m.activePackageLevel = newLevel;
+      PACKAGES.forEach(p => {
+        if (p.level <= newLevel) m.boxes[p.level].unlocked = true;
+      });
+      m.cashWallet = parseInt(fd.get("cashWallet") || "0", 10);
+      m.upgradeWalletPv = parseInt(fd.get("upgradeWalletPv") || "0", 10);
+      m.pan = (fd.get("pan") || "").trim().toUpperCase();
+      m.hasPan = fd.get("hasPan") === "true" && m.pan.length > 0;
+      m.nominee.name = (fd.get("nomineeName") || m.nominee.name).trim();
+      m.nominee.relation = (fd.get("nomineeRelation") || m.nominee.relation).trim();
+
+      state.editingMemberId = null;
+      saveState();
+      render();
+      alert(`Account & Bank details for ${m.name} (${m.id}) updated successfully!`);
+    }
+
+    function handleMemberLogin() {
+      const idVal = (document.getElementById("memLoginId")?.value || "").trim().toUpperCase();
+      const passVal = (document.getElementById("memLoginPass")?.value || "").trim();
+      const found = state.members.find(m => m.id === idVal && m.password === passVal);
+      if (!found) { alert("Invalid Member ID or Password!"); return; }
+      state.activeMemberId = found.id;
+      state.memberLoggedIn = true;
+      state.memberTab = "dashboard";
+      saveState();
+      render();
+    }
+
+    function logoutMember() { state.memberLoggedIn = false; saveState(); render(); }
+
+    function handleChangePassword(event, memberId) {
+      event.preventDefault();
+      const m = getMemberById(memberId);
+      if (!m) return;
+      const fd = new FormData(event.target);
+      const curr = (fd.get("currentPass") || "").trim();
+      const np = (fd.get("newPass") || "").trim();
+      const cp = (fd.get("confirmPass") || "").trim();
+      if (curr !== m.password) { alert("Current password incorrect!"); return; }
+      if (np.length < 4 || np !== cp) { alert("New password invalid or mismatch!"); return; }
+      m.password = np;
+      saveState();
+      render();
+      alert("Password updated!");
+    }
+
+    function handleAdminLogin() {
+      const idVal = (document.getElementById("adminLoginId")?.value || "").trim().toUpperCase();
+      const passVal = (document.getElementById("adminLoginPass")?.value || "").trim();
+      if (idVal === "ADMIN01" && passVal === "admin123") {
+        state.adminLoggedIn = true;
+        state.adminTab = "utr";
+        saveState();
+        render();
+      } else {
+        alert("Invalid Admin credentials!");
+      }
+    }
+
+    function logoutAdmin() {
+      state.adminLoggedIn = false;
+      state.roleView = "member";
+      saveState();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function handleNewJoining(event) {
+      event.preventDefault();
+      const fd = new FormData(event.target);
+      const sponsorId = (fd.get("sponsorId") || "SMPL1001").trim().toUpperCase();
+      const placement = (fd.get("placement") || "LEFT").toUpperCase();
+      const paymentMode = (fd.get("paymentMode") || "UPI").trim();
+      const name = (fd.get("name") || "").trim();
+      const mobile = (fd.get("mobile") || "").trim();
+      const age = parseInt(fd.get("age") || "30", 10);
+      const pkgLevel = parseInt(fd.get("pkgLevel") || "1", 10);
+      const pkgObj = PACKAGES[pkgLevel - 1] || PACKAGES[0];
+      const joiningAmount = parseInt(fd.get("joiningAmount") || String(pkgObj.amount), 10);
+      const utrNumber = (fd.get("utrNumber") || "").trim().toUpperCase();
+
+      const bankName = (fd.get("bankName") || "").trim();
+      const accountNumber = (fd.get("accountNumber") || "").trim();
+      const ifscCode = (fd.get("ifscCode") || "").trim().toUpperCase();
+      const upiId = (fd.get("upiId") || "").trim();
+
+      const sponsor = getMemberById(sponsorId) || state.members[0];
+      const newId = generateNextMemberId();
+      const panInput = (fd.get("pan") || "").trim().toUpperCase();
+      const hasPan = fd.get("hasPan") === "true" && panInput.length > 0;
+
+      const newMember = {
+        id: newId,
+        password: DEFAULT_PASSWORD,
+        name,
+        mobile,
+        age,
+        sponsorId: sponsor.id,
+        placement,
+        parentId: null,
+        leftChildId: null,
+        rightChildId: null,
+        paymentMode,
+        utrNumber,
+        joiningAmount,
+        status: "PENDING",
+        address: {
+          village: (fd.get("village") || "").trim(),
+          postBlock: (fd.get("postBlock") || "").trim(),
+          district: (fd.get("district") || "").trim(),
+          state: (fd.get("state") || "Odisha").trim(),
+          pin: (fd.get("pin") || "").trim()
+        },
+        pan: panInput,
+        hasPan,
+        bankDetails: {
+          accountHolder: name,
+          bankName,
+          accountNumber,
+          ifscCode,
+          upiId
+        },
+        bankInfo: accountNumber ? `${bankName} • ${accountNumber} (${ifscCode})` : (upiId || "Pending Bank Update"),
+        nominee: {
+          name: (fd.get("nomineeName") || "").trim(),
+          relation: (fd.get("nomineeRelation") || "Spouse").trim(),
+          age: parseInt(fd.get("nomineeAge") || "25", 10),
+          contact: (fd.get("nomineeContact") || "").trim()
+        },
+        activePackageLevel: pkgLevel,
+        leftPv: 0,
+        rightPv: 0,
+        cashWallet: 0,
+        totalCashPaidOut: 0,
+        upgradeWalletPv: 0,
+        totalTdsDeposited: 0,
+        boxes: createEmptyBoxes(pkgLevel)
+      };
+
+      state.members.push(newMember);
+      state.lastCreatedCredentials = { id: newId, password: DEFAULT_PASSWORD, name, placement, utr: utrNumber, paymentMode };
+      state.memberLoggedIn = true;
+      state.memberTab = "dashboard";
+      saveState();
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function handleAddNews(event) {
+      event.preventDefault();
+      const text = (new FormData(event.target).get("newsText") || "").trim();
+      if (!text) return;
+      state.newsItems.unshift({ id: "N-" + Date.now(), text });
+      saveState();
+      render();
+    }
+
+    function deleteNews(id) { state.newsItems = state.newsItems.filter(n => n.id !== id); saveState(); render(); }
+
+    function handleAddYoutube(event) {
+      event.preventDefault();
+      if (state.youtubeLinks.length >= 5) return;
+      const fd = new FormData(event.target);
+      const title = (fd.get("ytTitle") || "").trim();
+      const url = (fd.get("ytUrl") || "").trim();
+      if (!title || !url) return;
+      state.youtubeLinks.push({ id: "YT-" + Date.now(), title, url });
+      saveState();
+      render();
+    }
+
+    function deleteYoutube(id) { state.youtubeLinks = state.youtubeLinks.filter(y => y.id !== id); saveState(); render(); }
+
+    function togglePasswordVisibility(inputId, btnEl) {
+      const inp = document.getElementById(inputId);
+      if (!inp) return;
+      if (inp.type === "password") {
+        inp.type = "text";
+        if (btnEl) btnEl.textContent = "🙈";
+      } else {
+        inp.type = "password";
+        if (btnEl) btnEl.textContent = "👁";
+      }
+    }
+
+    function copyTextValue(val, label, btnEl) {
+      const clean = String(val || "").trim();
+      if (!clean) return;
+      const onSuccess = () => {
+        if (btnEl) {
+          const origText = btnEl.textContent;
+          btnEl.textContent = "✓ Copied";
+          setTimeout(() => { btnEl.textContent = origText; }, 1600);
+        }
+        showCopyToast(`${label} Copied: ${clean}`);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(clean).then(onSuccess).catch(() => mobileFallbackCopy(clean, onSuccess));
+      } else {
+        mobileFallbackCopy(clean, onSuccess);
+      }
+    }
+
+    function copyFieldWithFeedback(btnEl, fieldKey, label) {
+      const map = {
+        adminAccountNumber: state.adminPaymentDetails.accountNumber,
+        adminIfscCode: state.adminPaymentDetails.ifscCode,
+        adminUpiId: state.adminPaymentDetails.upiId
+      };
+      const val = String(map[fieldKey] || "").trim();
+      if (!val) return;
+      copyTextValue(val, label, btnEl);
+    }
+
+    function mobileFallbackCopy(val, onSuccess) {
+      const ta = document.createElement("textarea");
+      ta.value = val;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "0";
+      ta.style.left = "0";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, val.length);
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok && onSuccess) {
+        onSuccess();
+      } else {
+        alert("Copy this value: " + val);
+      }
+    }
+
+    function showCopyToast(msg) {
+      let toast = document.getElementById("copyToastBanner");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "copyToastBanner";
+        toast.className = "fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-2xl border border-emerald-200";
+        document.body.appendChild(toast);
+      }
+      toast.textContent = "✓ " + msg;
+      toast.style.display = "block";
+      clearTimeout(window._copyToastTimer);
+      window._copyToastTimer = setTimeout(() => {
+        toast.style.display = "none";
+      }, 2200);
+    }
+
+    function handleSaveAdminPaymentDetails(event) {
+      event.preventDefault();
+      const fd = new FormData(event.target);
+      state.adminPaymentDetails = {
+        upiId: (fd.get("upiId") || "").trim(),
+        accountHolder: (fd.get("accountHolder") || "").trim(),
+        bankName: (fd.get("bankName") || "").trim(),
+        accountNumber: (fd.get("accountNumber") || "").trim(),
+        ifscCode: (fd.get("ifscCode") || "").trim().toUpperCase(),
+        qrNote: (fd.get("qrNote") || "").trim()
+      };
+      saveState();
+      render();
+      alert("Admin UPI, QR & Bank details updated and synced to Joining Form!");
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function escapeAttr(url) {
+      const clean = String(url || "").trim();
+      if (/^(https?:\/\/|https:\/\/wa\.me\/|upi:\/\/)/i.test(clean)) return escapeHtml(clean);
+      return escapeHtml(clean);
+    }
+
+    async function bootApp() {
+      render();
+      await pullStateFromFirebase(true);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && Date.now() - lastCloudSyncAt > 2000) {
+          pullStateFromFirebase(true);
+        }
+      });
+      setInterval(() => {
+        if (!document.hidden && !isUserEditingForm()) {
+          pullStateFromFirebase(true);
+        }
+      }, 12000);
+    }
+
+    bootApp();
+  </script>
+</body>
+</html>
